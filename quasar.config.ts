@@ -12,7 +12,7 @@ export default defineConfig((ctx) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['i18n', 'axios'],
+    boot: ['i18n', 'axios', 'pinia'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -99,6 +99,18 @@ export default defineConfig((ctx) => {
     devServer: {
       // https: true,
       open: true, // opens browser window automatically
+      // Прокси для запросов к API в режиме разработки, чтобы избежать CORS.
+      // Перенаправляем все запросы, начинающиеся с /api, на бэкенд.
+      proxy: {
+        '/api': {
+          // Если VITE_API_BASE содержит суффикс /api, без rewrite получится /api/api/...
+          // Поэтому удаляем префикс /api при проксировании к таргету.
+          target: process.env.VITE_API_BASE || 'http://localhost:8080',
+          changeOrigin: true,
+          secure: false,
+          rewrite: (path) => path.replace(/^\/api/, ''),
+        },
+      },
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
@@ -231,5 +243,5 @@ export default defineConfig((ctx) => {
        */
       extraScripts: [],
     },
-  };
+  }
 });

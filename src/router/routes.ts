@@ -1,12 +1,19 @@
-import type { RouteRecordRaw } from 'vue-router';
+import type { RouteRecordRaw } from 'vue-router'
 
 const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: () => import('layouts/MainLayout.vue'),
     children: [
-      { path: '', component: () => import('pages/IndexPage.vue') },
+      // MainPage is now the home page
+      { path: '', component: () => import('pages/MainPage.vue') },
       { path: 'exercisePage', component: () => import('pages/ExercisePage.vue') },
+      { path: 'mainPage', component: () => import('pages/MainPage.vue') },
+      { path: 'history', component: () => import('pages/HistoryPage.vue') },
+      { path: 'exercises', component: () => import('pages/ExercisesPage.vue') },
+      { path: 'profile', component: () => import('pages/ProfilePage.vue') },
+      { path: 'coach', component: () => import('pages/VirtualCoachPage.vue') },
+      { path: 'proad', component: () => import('pages/ProAd.vue') },
     ],
   },
 
@@ -16,6 +23,6 @@ const routes: RouteRecordRaw[] = [
     path: '/:catchAll(.*)*',
     component: () => import('pages/ErrorNotFound.vue'),
   },
-];
+]
 
-export default routes;
+export default routes
