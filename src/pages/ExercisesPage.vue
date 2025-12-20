@@ -22,15 +22,33 @@
 
       <!-- Lists -->
       <div v-if="mode === 'trainings'">
-        <div v-if="!flattenedTrainings.length" class="empty-hint">Тренировок пока нет.</div>
-        <div class="cards-grid">
-          <q-card v-for="t in filteredTrainings" :key="t.id" class="card">
-            <div class="card-body">
-              <div class="card-title">{{ t.name }}</div>
-              <div class="card-subtitle">Папка: {{ t.folderName }}</div>
+          <div v-if="globalTrainingsLoading" class="empty-hint">Загрузка тренировок...</div>
+          <div v-else-if="globalTrainings.length">
+            <div class="cards-grid">
+              <q-card v-for="t in globalTrainings" :key="t.id" class="card">
+                <div class="card-body">
+                  <div class="card-title">{{ t.name }}</div>
+                  <div class="card-subtitle">{{ t.level }}</div>
+                  <div style="margin-top:6px; font-size:13px; color:#666">{{ t.description }}</div>
+                </div>
+              </q-card>
             </div>
-          </q-card>
-        </div>
+          </div>
+          <div v-else>
+            <div v-if="!flattenedTrainings.length" class="empty-hint">Тренировок пока нет.</div>
+            <div class="cards-grid">
+              <q-card
+                v-for="t in filteredTrainings"
+                :key="t.id"
+                class="card"
+              >
+                <div class="card-body">
+                  <div class="card-title">{{ t.name }}</div>
+                  <div class="card-subtitle">Папка: {{ t.folderName }}</div>
+                </div>
+              </q-card>
+            </div>
+          </div>
       </div>
 
       <div v-else>
@@ -112,6 +130,47 @@ const filteredTrainings = computed(() => {
   const q = trainingQuery.value.trim().toLowerCase()
   if (!q) return flattenedTrainings.value
   return flattenedTrainings.value.filter((t) => t.name.toLowerCase().includes(q))
+})
+
+// --- Global trainings (загружаются при переключении на режим 'trainings')
+type GlobalTraining = {
+  id: number
+  name: string
+  description: string
+  level?: string
+  exercises?: ApiExercise[]
+}
+
+const globalTrainings = ref<GlobalTraining[]>([])
+const globalTrainingsLoading = ref(false)
+
+async function fetchGlobalTrainings() {
+  globalTrainingsLoading.value = true
+  try {
+    const resp = await api.get<GlobalTraining[]>('/api/v1/global-trainings')
+    const data = resp.data || []
+    // Подставляем заглушки для пустых полей
+    globalTrainings.value = data.map((g) => ({
+      id: g.id,
+      name: g.name && g.name.trim() ? g.name : 'Без названия',
+      description: g.description && g.description.trim() ? g.description : 'Описание отсутствует',
+      level: g.level || 'unknown',
+      exercises: Array.isArray(g.exercises) ? g.exercises : [],
+    }))
+  } catch (err) {
+    console.error('Failed to load global trainings', err)
+    $q.notify({ type: 'negative', message: 'Не удалось загрузить глобальные тренировки' })
+    globalTrainings.value = []
+  } finally {
+    globalTrainingsLoading.value = false
+  }
+}
+
+// Вызываем загрузку при переключении режима
+watch(mode, (m) => {
+  if (m === 'trainings') {
+    void fetchGlobalTrainings()
+  }
 })
 
 // Exercises: fetched from API
