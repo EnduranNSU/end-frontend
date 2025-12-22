@@ -19,14 +19,28 @@
     </section>
 
     <section class="q-mt-lg">
-      <h5 class="section-title">Замеры тела</h5>
-      <div class="chips-grid q-mt-sm">
-        <q-btn class="chip" outline no-caps :label="`Вес: ${profile.weight ?? '—'}`" @click="openEdit" />
-        <q-btn class="chip" outline no-caps :label="`% жировой массы: ${profile.fatPercent ?? '—'}`" @click="openEdit" />
-        <q-btn class="chip" outline no-caps :label="`Потребление калорий: ${profile.calories ?? '—'}`" @click="openEdit" />
-      </div>
-      <q-card flat bordered class="q-mt-sm rounded-card clickable" @click="openEdit">
-        <div class="q-pa-md text-center">Части тела: {{ profile.bodyparts || '—' }}</div>
+      <h5 class="section-title">Информация о пользователе</h5>
+      <q-card flat bordered class="q-pa-md rounded-card">
+        <div v-if="measurementsLoading" class="text-center">Загрузка замеров...</div>
+        <div v-else>
+          <div v-for="m in measurements" :key="m.id ?? m.type" class="row items-center q-gutter-sm q-mb-sm">
+            <div class="col-4">{{ m.type }}</div>
+            <div class="col">
+              <q-select
+                v-if="String(m.type).toLowerCase() === 'пол'"
+                dense
+                v-model.number="m.value"
+                :options="genderOptions"
+                emit-value
+                map-options
+              />
+              <q-input v-else dense v-model.number="m.value" type="number" />
+            </div>
+          </div>
+          <div class="row q-justify-end q-mt-md">
+            <q-btn color="primary" label="Сохранить замеры" :loading="measurementsSaving" @click="saveMeasurements" />
+          </div>
+        </div>
       </q-card>
     </section>
 
@@ -35,12 +49,7 @@
       <div class="text-grey-6 q-pt-xs">Скоро появятся графики прогресса.</div>
     </section>
 
-    <section class="q-mt-xl flex flex-center">
-      <div class="column items-center q-gutter-sm">
-        <div class="text-subtitle1">Оформите премиум версию</div>
-        <q-btn color="primary" unelevated no-caps label="Перейти к Pro" @click="toPro" />
-      </div>
-    </section>
+    
 
     <q-dialog v-model="editOpened">
       <q-card style="min-width: 340px; max-width: 92vw">
@@ -124,7 +133,7 @@ const LS_KEY = 'enduran.profile'
 
 const profile = ref<Profile>({
   name: 'Пайпик',
-  workouts: 100,
+  workouts: 0,
   email: 'pipik@gmail.com',
   weight: null,
   fatPercent: null,
@@ -140,8 +149,9 @@ onMounted(() => {
     console.warn('Failed to load profile from localStorage', e)
   }
 
-  // Try to fetch authenticated user info from backend and merge into profile
-  void fetchUser()
+  // Try to fetch authenticated user info from backend and merge into profile,
+  // then load trainings to update `workouts` dynamically
+  void fetchUser().then(() => void loadTrainings())
 })
 
 async function fetchUser() {
@@ -206,9 +216,168 @@ function saveEdit() {
   }
 }
 
-function toPro() { void router.push('/proad') }
-
 // share functionality removed per request (buttons hidden)
+
+// ---------------- measurements handling ----------------
+import { onBeforeMount } from 'vue'
+
+type Measurement = {
+  id?: number
+  type: string
+  value: number | string | null
+  date?: string
+}
+
+const measurements = ref<Measurement[]>([])
+const measurementsLoading = ref(false)
+const measurementsSaving = ref(false)
+
+const DEFAULT_MEASUREMENTS = [
+  'Рост',
+  'Вес',
+  'Возраст',
+  'Пол',
+  'Бицепс',
+  'Грудь',
+  'Бедро'
+]
+
+const genderOptions = [
+  { label: 'Муж', value: 0 },
+  { label: 'Жен', value: 1 }
+]
+
+async function loadMeasurements() {
+  measurementsLoading.value = true
+  try {
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+
+    const resp = await api.get('/measurements/')
+    const data = resp.data || []
+    measurements.value = Array.isArray(data) ? data.map((m: any) => ({ ...m })) : []
+
+    await ensureDefaultsExist()
+  } catch (err: unknown) {
+    try {
+      // @ts-ignore
+      const status = err && err.response && err.response.status
+      if (status === 401) {
+        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
+        void router.push('/signin')
+        return
+      }
+    } catch (_) {}
+    console.warn('Failed to load measurements', err)
+    $q.notify({ type: 'negative', message: 'Не удалось загрузить замеры' })
+  } finally {
+    measurementsLoading.value = false
+  }
+}
+
+async function ensureDefaultsExist() {
+  try {
+    const missing = DEFAULT_MEASUREMENTS.filter(t => !measurements.value.some(m => String(m.type).toLowerCase() === String(t).toLowerCase()))
+    if (!missing.length) return
+
+    for (const t of missing) {
+      try {
+        const payload = { type: t, value: 0, date: new Date().toISOString() }
+        const resp = await api.post('/measurements/create', payload)
+        if (resp && resp.data) measurements.value.push(resp.data)
+      } catch (e) {
+        console.warn('Failed to create measurement', t, e)
+      }
+    }
+  } catch (e) {
+    console.warn('ensureDefaultsExist error', e)
+  }
+}
+
+async function saveMeasurements() {
+  measurementsSaving.value = true
+  try {
+    // Get current server list (baseline) because update replaces all entries
+    const resp = await api.get('/measurements/')
+    const serverList: Measurement[] = Array.isArray(resp.data) ? resp.data : []
+
+    const serverByType = new Map<string, Measurement>()
+    for (const s of serverList) serverByType.set(String(s.type).toLowerCase(), s)
+
+    // Merge: for each server item, prefer local edit if exists
+    const merged: { type: string; value: number | string | null; date: string }[] = []
+    for (const s of serverList) {
+      const key = String(s.type).toLowerCase()
+      const local = measurements.value.find(m => String(m.type).toLowerCase() === key)
+      let val = local ? (local.value ?? s.value ?? 0) : (s.value ?? 0)
+      if (key === 'пол') val = Number(val) || 0
+      merged.push({ type: s.type, value: val, date: s.date || new Date().toISOString() })
+    }
+
+    // Add any local-only items
+    for (const l of measurements.value) {
+      const key = String(l.type).toLowerCase()
+      if (!serverByType.has(key)) {
+        let v: any = l.value ?? 0
+        if (key === 'пол') v = Number(v) || 0
+        merged.push({ type: l.type, value: v, date: l.date || new Date().toISOString() })
+      }
+    }
+
+    await api.post('/measurements/update', merged)
+    $q.notify({ type: 'positive', message: 'Замеры сохранены' })
+    await loadMeasurements()
+  } catch (err: unknown) {
+    try {
+      // @ts-ignore
+      const status = err && err.response && err.response.status
+      if (status === 401) {
+        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
+        void router.push('/signin')
+        return
+      }
+    } catch (_) {}
+    console.warn('Failed to save measurements', err)
+    $q.notify({ type: 'negative', message: 'Не удалось сохранить замеры' })
+  } finally {
+    measurementsSaving.value = false
+  }
+}
+
+onBeforeMount(() => {
+  void loadMeasurements()
+})
+
+// ---------------- trainings handling ----------------
+const trainingsLoading = ref(false)
+
+async function loadTrainings() {
+  trainingsLoading.value = true
+  try {
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+
+    // Only load planned trainings for now (user_performed not requested)
+    const plannedResp = await api.get('/training/planned')
+    const planned = Array.isArray(plannedResp.data) ? plannedResp.data : []
+
+    profile.value.workouts = planned.length
+    persist()
+  } catch (err: unknown) {
+    try {
+      // @ts-ignore
+      const status = err && err.response && err.response.status
+      if (status === 401) {
+        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
+        void router.push('/signin')
+        return
+      }
+    } catch (_) {}
+    console.warn('Failed to load trainings', err)
+  } finally {
+    trainingsLoading.value = false
+  }
+}
 </script>
 
 <style scoped>
