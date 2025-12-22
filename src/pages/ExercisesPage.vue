@@ -17,7 +17,19 @@
       </div>
 
       <div v-else class="q-mb-md filters">
-        <q-input v-model="exerciseQuery" label="Название упражнения" clearable dense filled />
+        <div class="grid">
+          <q-input v-model="exerciseQuery" label="Название упражнения" clearable dense filled />
+          <q-select
+            v-model="selectedTag"
+            :options="tagOptions"
+            label="Тег"
+            dense
+            clearable
+            :loading="tagsLoading"
+            emit-value
+            map-options
+          />
+        </div>
       </div>
 
       <!-- Lists -->
@@ -184,6 +196,62 @@ const exercises = ref<ApiExercise[]>([])
 const exerciseQuery = ref('')
 const loading = ref(false)
 
+// Теги для фильтрации
+type Tag = { id: number; type: string }
+const tags = ref<Tag[]>([])
+const tagsLoading = ref(false)
+const selectedTag = ref<number | null>(null)
+
+const tagOptions = computed(() => tags.value.map((t) => ({ label: t.type, value: t.id })))
+
+async function fetchTags() {
+  tagsLoading.value = true
+  try {
+    const resp = await api.get<Tag[]>('/api/v1/tags')
+    tags.value = resp.data || []
+  } catch (err) {
+    console.error('Failed to load tags', err)
+    $q.notify({ type: 'negative', message: 'Не удалось загрузить теги' })
+    tags.value = []
+  } finally {
+    tagsLoading.value = false
+  }
+}
+
+async function fetchAllExercises() {
+  loading.value = true
+  try {
+    const resp = await api.get<ApiExercise[]>('/api/v1/exercises')
+    exercises.value = resp.data || []
+  } catch (err) {
+    console.error('Failed to load exercises', err)
+    $q.notify({ type: 'negative', message: 'Не удалось загрузить упражнения' })
+    exercises.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+async function fetchExercisesByTag(tagId: number) {
+  loading.value = true
+  try {
+    const resp = await api.get<ApiExercise[]>(`/api/v1/exercises/tag/${tagId}`)
+    exercises.value = resp.data || []
+  } catch (err) {
+    console.error('Failed to load exercises by tag', err)
+    $q.notify({ type: 'negative', message: 'Не удалось загрузить упражнения по тегу' })
+    exercises.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+// следим за выбором тега
+watch(selectedTag, (val) => {
+  if (val == null) void fetchAllExercises()
+  else void fetchExercisesByTag(val)
+})
+
 const filteredExercises = computed(() => {
   const q = exerciseQuery.value.trim().toLowerCase()
   return exercises.value.filter((ex) => {
@@ -192,19 +260,10 @@ const filteredExercises = computed(() => {
   })
 })
 
-onMounted(async () => {
-  loading.value = true
-  try {
-    const resp = await api.get<ApiExercise[]>('/api/v1/exercises')
-    exercises.value = resp.data || []
-  } catch (err) {
-    console.error('Failed to load exercises', err)
-    // Показываем уведомление об ошибке пользователю
-    $q.notify({ type: 'negative', message: 'Не удалось загрузить упражнения' })
-    exercises.value = []
-  } finally {
-    loading.value = false
-  }
+onMounted(() => {
+  // Загружаем теги и все упражнения изначально
+  void fetchTags()
+  void fetchAllExercises()
 })
 
 function openExercise(id: number | string) {

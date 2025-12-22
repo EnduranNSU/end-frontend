@@ -9,8 +9,6 @@
         <div class="text-grey-7">{{ profile.workouts }} тренировок</div>
       </div>
       <q-space />
-      <q-btn flat round icon="edit" @click="openEdit" class="q-mr-xs" />
-      <q-btn flat round icon="ios_share" @click="onShare" :disable="shareBusy" :loading="shareBusy" />
     </section>
 
     <section class="q-mt-md">
@@ -78,7 +76,8 @@
 import BottomNavBar from 'src/components/BottomNavBar.vue'
 import { onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { copyToClipboard, useQuasar } from 'quasar'
+import { useQuasar } from 'quasar'
+import { api } from 'src/boot/axios'
 
 const $q = useQuasar()
 
@@ -140,7 +139,45 @@ onMounted(() => {
   } catch (e) {
     console.warn('Failed to load profile from localStorage', e)
   }
+
+  // Try to fetch authenticated user info from backend and merge into profile
+  void fetchUser()
 })
+
+async function fetchUser() {
+  try {
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+
+    const resp = await api.get('/user/')
+    const data = resp.data || {}
+    if (data.name) profile.value.name = data.name
+    if (data.email) profile.value.email = data.email
+    if (typeof data.workouts === 'number') profile.value.workouts = data.workouts
+    if (data.weight !== undefined) profile.value.weight = data.weight
+    if (data.fatPercent !== undefined) profile.value.fatPercent = data.fatPercent
+    if (data.calories !== undefined) profile.value.calories = data.calories
+    if (data.bodyparts !== undefined) profile.value.bodyparts = data.bodyparts
+
+    // persist fetched profile locally
+    persist()
+  } catch (err: unknown) {
+    // If user is not authenticated, redirect to sign in
+    try {
+      // attempt to read status safely
+      // @ts-ignore
+      const status = err && err.response && err.response.status
+      if (status === 401) {
+        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
+        void router.push('/signin')
+        return
+      }
+    } catch (_) {
+      // ignore
+    }
+    console.warn('Failed to fetch user profile', err)
+  }
+}
 
 function persist() {
   try { localStorage.setItem(LS_KEY, JSON.stringify(profile.value)) } catch (e) {
@@ -171,26 +208,7 @@ function saveEdit() {
 
 function toPro() { void router.push('/proad') }
 
-const shareBusy = ref(false)
-async function onShare() {
-  try {
-    shareBusy.value = true
-    const shareData = {
-      title: 'Мой профиль в Enduran',
-      text: 'Посмотри мой профиль и тренировки в приложении Enduran',
-      url: window.location.origin + '/profile',
-    }
-    if (navigator.share) await navigator.share(shareData)
-    else {
-      await copyToClipboard(shareData.url)
-      $q.notify({ type: 'positive', message: 'Ссылка скопирована' })
-    }
-  } catch {
-    $q.notify({ type: 'warning', message: 'Не удалось поделиться' })
-  } finally {
-    shareBusy.value = false
-  }
-}
+// share functionality removed per request (buttons hidden)
 </script>
 
 <style scoped>

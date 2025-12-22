@@ -1,10 +1,10 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
-import { defineConfig } from '#q-app/wrappers';
-import { fileURLToPath } from 'node:url';
+import { defineConfig } from '#q-app/wrappers'
+import { fileURLToPath } from 'node:url'
 
-export default defineConfig((ctx) => {
+export default defineConfig(ctx => {
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -101,16 +101,26 @@ export default defineConfig((ctx) => {
       open: true, // opens browser window automatically
       // Прокси для запросов к API в режиме разработки, чтобы избежать CORS.
       // Перенаправляем все запросы, начинающиеся с /api, на бэкенд.
-      proxy: {
-        '/api': {
-          // Если VITE_API_BASE содержит суффикс /api, без rewrite получится /api/api/...
-          // Поэтому удаляем префикс /api при проксировании к таргету.
-          target: process.env.VITE_API_BASE || 'http://localhost:8080',
-          changeOrigin: true,
-          secure: false,
-          rewrite: (path) => path.replace(/^\/api/, ''),
-        },
-      },
+        proxy: (() => {
+          // Нормализуем цель прокси: убираем возможный суффикс `/api`,
+          // чтобы не получить в итоговом URL двойной `/api/api/...`.
+          const raw = process.env.VITE_API_BASE || 'http://localhost:8000'
+          const normalized = String(raw).replace(/\/api\/?$/, '')
+          // Логируем для удобства при старте dev-server, чтобы видеть реальный target
+          // (это поможет отладить случаи, когда в окружении оказался другой адрес).
+          // eslint-disable-next-line no-console
+          console.log('[dev] proxy /api ->', normalized)
+
+          return {
+            '/api': {
+              target: normalized,
+              changeOrigin: true,
+              secure: false,
+              // Убираем префикс /api из пути перед отправкой на target
+              rewrite: (path: string) => path.replace(/^\/api/, ''),
+            },
+          }
+        })(),
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
@@ -128,7 +138,8 @@ export default defineConfig((ctx) => {
       // directives: [],
 
       // Quasar plugins
-      plugins: [],
+      // Добавляем Notify, чтобы можно было вызывать $q.notify(...) в компонентах
+      plugins: ['Notify'],
     },
 
     // animations: 'all', // --- includes all animations
@@ -244,4 +255,4 @@ export default defineConfig((ctx) => {
       extraScripts: [],
     },
   }
-});
+})
