@@ -3,13 +3,8 @@
     <div class="title q-mb-sm">{{ props.title }}</div>
     <div class="navbar">
       <ul class="menu row items-center">
-        <li
-          class="menu-item"
-          v-for="item in bottomMenu"
-          :key="item"
-          :class="{ active: active === item }"
-          @click="setActive(item)"
-        >
+        <li class="menu-item" v-for="item in bottomMenu" :key="item" :class="{ active: active === item }"
+          @click="setActive(item)">
           <span class="menu-label">{{ item }}</span>
         </li>
       </ul>
@@ -26,14 +21,16 @@ export default defineComponent({
   props: {
     title: { type: String, default: 'Exercise' },
     backRoute: { type: String, default: '' },
+    hideTabs: { type: Boolean, default: false },
   },
   emits: ['section-change'],
   setup(props, { emit }) {
     const router = useRouter();
-    const bottomMenu = ['Описание', 'История'];
+    const bottomMenu = props.hideTabs ? [] : ['Описание', 'История'];
     const active = ref<string>(bottomMenu[0] ?? '');
 
     function setActive(item: string) {
+      if (props.hideTabs) return;
       active.value = item;
       emit('section-change', item);
     }

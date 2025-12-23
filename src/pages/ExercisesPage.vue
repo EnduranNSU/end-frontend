@@ -2,21 +2,8 @@
   <q-page class="q-pa-md page-with-nav">
     <div class="content">
 
-      <!-- Toggle between Trainings and Exercises -->
-      <div class="q-mb-md flex justify-center">
-        <q-btn-toggle v-model="mode" no-caps unelevated color="primary" toggle-color="primary" text-color="black"
-          :options="[
-            { label: 'Тренировки', value: 'trainings' },
-            { label: 'Упражнения', value: 'exercises' }
-          ]" />
-      </div>
-
       <!-- Filters -->
-      <div v-if="mode === 'trainings'" class="q-mb-md filters">
-        <q-input v-model="trainingQuery" label="Поиск тренировки" clearable dense filled />
-      </div>
-
-      <div v-else class="q-mb-md filters">
+      <div class="q-mb-md filters">
         <div class="grid">
           <q-input v-model="exerciseQuery" label="Название упражнения" clearable dense filled />
           <q-select v-model="selectedTag" :options="tagOptions" label="Тег" dense clearable :loading="tagsLoading"
@@ -25,40 +12,14 @@
       </div>
 
       <!-- Lists -->
-      <div v-if="mode === 'trainings'">
-        <div v-if="globalTrainingsLoading" class="empty-hint">Загрузка тренировок...</div>
-        <div v-else-if="globalTrainings.length">
-          <div class="cards-grid">
-            <q-card v-for="t in globalTrainings" :key="t.id" class="card">
-              <div class="card-body">
-                <div class="card-title">{{ t.name }}</div>
-                <div class="card-subtitle">{{ t.level }}</div>
-                <div style="margin-top:6px; font-size:13px; color:#666">{{ t.description }}</div>
-              </div>
-            </q-card>
-          </div>
-        </div>
-        <div v-else>
-          <div v-if="!flattenedTrainings.length" class="empty-hint">Тренировок пока нет.</div>
-          <div class="cards-grid">
-            <q-card v-for="t in filteredTrainings" :key="t.id" class="card">
-              <div class="card-body">
-                <div class="card-title">{{ t.name }}</div>
-                <div class="card-subtitle">Папка: {{ t.folderName }}</div>
-              </div>
-            </q-card>
-          </div>
-        </div>
-      </div>
-
-      <div v-else>
+      <div>
         <div v-if="loading" class="empty-hint">Загрузка упражнений...</div>
         <div v-else-if="!exercises.length" class="empty-hint">Список упражнений пуст.</div>
         <div class="cards-grid">
           <q-card v-for="ex in filteredExercises" :key="ex.id" class="card exercise-card" clickable
             @click="openExercise(ex.id)">
             <div class="card-body column" style="cursor:pointer">
-              <div class="card-title">{{ ex.description }}</div>
+              <div class="card-title">{{ ex.title }}</div>
             </div>
           </q-card>
         </div>
@@ -75,7 +36,6 @@ import BottomNavBar from 'src/components/BottomNavBar.vue'
 import { computed, ref, watch, onMounted } from 'vue'
 import { api } from 'src/boot/axios'
 import { useRoute, useRouter } from 'vue-router'
-import { useFoldersStore } from 'src/stores/folders'
 import { useQuasar } from 'quasar'
 
 const route = useRoute()
@@ -109,148 +69,73 @@ function onNavigate(key: string) {
   if (route.path !== to) void router.push(to)
 }
 
-// UI mode: trainings or exercises
-const mode = ref<'trainings' | 'exercises'>('exercises')
-
-// Trainings: flatten from folders store and filter by name
-const foldersStore = useFoldersStore()
-const flattenedTrainings = computed(() => {
-  return (foldersStore.folders || []).flatMap((f) =>
-    (f.trainings || []).map((t) => ({
-      id: t.id,
-      name: t.name,
-      folderId: f.id,
-      folderName: f.name,
-    }))
-  )
-})
-
-const trainingQuery = ref('')
-const filteredTrainings = computed(() => {
-  const q = trainingQuery.value.trim().toLowerCase()
-  if (!q) return flattenedTrainings.value
-  return flattenedTrainings.value.filter((t) => t.name.toLowerCase().includes(q))
-})
-
-// --- Global trainings (загружаются при переключении на режим 'trainings')
-type GlobalTraining = {
-  id: number
-  name: string
-  description: string
-  level?: string
-  exercises?: ApiExercise[]
-}
-
-const globalTrainings = ref<GlobalTraining[]>([])
-const globalTrainingsLoading = ref(false)
-
-async function fetchGlobalTrainings() {
-  globalTrainingsLoading.value = true
-  try {
-    const resp = await api.get<GlobalTraining[]>('/api/v1/global-trainings')
-    const data = resp.data || []
-    // Подставляем заглушки для пустых полей
-    globalTrainings.value = data.map((g) => ({
-      id: g.id,
-      name: g.name && g.name.trim() ? g.name : 'Без названия',
-      description: g.description && g.description.trim() ? g.description : 'Описание отсутствует',
-      level: g.level || 'unknown',
-      exercises: Array.isArray(g.exercises) ? g.exercises : [],
-    }))
-  } catch (err) {
-    console.error('Failed to load global trainings', err)
-    $q.notify({ type: 'negative', message: 'Не удалось загрузить глобальные тренировки' })
-    globalTrainings.value = []
-  } finally {
-    globalTrainingsLoading.value = false
-  }
-}
-
-// Вызываем загрузку при переключении режима
-watch(mode, (m) => {
-  if (m === 'trainings') {
-    void fetchGlobalTrainings()
-  }
-})
+// Trainings removed: page now only shows exercises
 
 // Exercises: fetched from API
 export type ApiExercise = {
   id: number
-  description: string
-  video_url?: string
+  title: string
+  tags: string[]
+  hrefs?: string[]
 }
 
 const exercises = ref<ApiExercise[]>([])
 const exerciseQuery = ref('')
 const loading = ref(false)
 
-// Теги для фильтрации
-type Tag = { id: number; type: string }
-const tags = ref<Tag[]>([])
+// Теги для фильтрации (собираем из ответа /exercise/)
+const tags = ref<string[]>([])
 const tagsLoading = ref(false)
-const selectedTag = ref<number | null>(null)
+const selectedTag = ref<string | null>(null)
 
-const tagOptions = computed(() => tags.value.map((t) => ({ label: t.type, value: t.id })))
-
-async function fetchTags() {
-  tagsLoading.value = true
-  try {
-    const resp = await api.get<Tag[]>('/api/v1/tags')
-    tags.value = resp.data || []
-  } catch (err) {
-    console.error('Failed to load tags', err)
-    $q.notify({ type: 'negative', message: 'Не удалось загрузить теги' })
-    tags.value = []
-  } finally {
-    tagsLoading.value = false
-  }
-}
+const tagOptions = computed(() => tags.value.map((t) => ({ label: t, value: t })))
 
 async function fetchAllExercises() {
   loading.value = true
+  tagsLoading.value = true
   try {
-    const resp = await api.get<ApiExercise[]>('/api/v1/exercises')
-    exercises.value = resp.data || []
+    const resp = await api.get<ApiExercise[]>('/exercise/')
+    const data = resp.data || []
+    // нормализуем поля: старые компоненты ожидают 'description'
+    exercises.value = data.map((e) => ({ ...e }))
+
+    // Собираем уникальные теги
+    const set = new Set<string>()
+    data.forEach((e) => {
+      if (Array.isArray(e.tags)) {
+        e.tags.forEach((t) => set.add(t))
+      }
+    })
+    tags.value = Array.from(set).sort()
   } catch (err) {
     console.error('Failed to load exercises', err)
     $q.notify({ type: 'negative', message: 'Не удалось загрузить упражнения' })
     exercises.value = []
+    tags.value = []
   } finally {
     loading.value = false
-  }
-}
-
-async function fetchExercisesByTag(tagId: number) {
-  loading.value = true
-  try {
-    const resp = await api.get<ApiExercise[]>(`/api/v1/exercises/tag/${tagId}`)
-    exercises.value = resp.data || []
-  } catch (err) {
-    console.error('Failed to load exercises by tag', err)
-    $q.notify({ type: 'negative', message: 'Не удалось загрузить упражнения по тегу' })
-    exercises.value = []
-  } finally {
-    loading.value = false
+    tagsLoading.value = false
   }
 }
 
 // следим за выбором тега
-watch(selectedTag, (val) => {
-  if (val == null) void fetchAllExercises()
-  else void fetchExercisesByTag(val)
+// При выборе тега фильтрация выполняется на клиенте в computed `filteredExercises`
+watch(selectedTag, () => {
+  // noop: filteredExercises реагирует на selectedTag
 })
 
 const filteredExercises = computed(() => {
   const q = exerciseQuery.value.trim().toLowerCase()
   return exercises.value.filter((ex) => {
-    const text = (ex.description || '').toLowerCase()
-    return !q || text.includes(q)
+    const text = (ex.title || '').toLowerCase()
+    const matchesText = !q || text.includes(q)
+    const matchesTag = !selectedTag.value || (Array.isArray(ex.tags) && ex.tags.includes(selectedTag.value))
+    return matchesText && matchesTag
   })
 })
 
 onMounted(() => {
-  // Загружаем теги и все упражнения изначально
-  void fetchTags()
+  // Загружаем все упражнения и собираем теги из ответа
   void fetchAllExercises()
 })
 

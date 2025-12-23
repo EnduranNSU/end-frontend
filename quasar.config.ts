@@ -101,26 +101,26 @@ export default defineConfig(ctx => {
       open: true, // opens browser window automatically
       // Прокси для запросов к API в режиме разработки, чтобы избежать CORS.
       // Перенаправляем все запросы, начинающиеся с /api, на бэкенд.
-        proxy: (() => {
-          // Нормализуем цель прокси: убираем возможный суффикс `/api`,
-          // чтобы не получить в итоговом URL двойной `/api/api/...`.
-          const raw = process.env.VITE_API_BASE || 'http://localhost:8000'
-          const normalized = String(raw).replace(/\/api\/?$/, '')
-          // Логируем для удобства при старте dev-server, чтобы видеть реальный target
-          // (это поможет отладить случаи, когда в окружении оказался другой адрес).
-          // eslint-disable-next-line no-console
-          console.log('[dev] proxy /api ->', normalized)
+      proxy: (() => {
+        // Нормализуем цель прокси: убираем возможный суффикс `/api`,
+        // чтобы не получить в итоговом URL двойной `/api/api/...`.
+        const raw = process.env.VITE_API_BASE || 'http://localhost:8000'
+        const normalized = String(raw).replace(/\/api\/?$/, '')
+        // Логируем для удобства при старте dev-server, чтобы видеть реальный target
+        // (это поможет отладить случаи, когда в окружении оказался другой адрес).
 
-          return {
-            '/api': {
-              target: normalized,
-              changeOrigin: true,
-              secure: false,
-              // Убираем префикс /api из пути перед отправкой на target
-              rewrite: (path: string) => path.replace(/^\/api/, ''),
-            },
-          }
-        })(),
+        console.log('[dev] proxy /api ->', normalized)
+
+        return {
+          '/api': {
+            target: normalized,
+            changeOrigin: true,
+            secure: false,
+            // Убираем префикс /api из пути перед отправкой на target
+            rewrite: (path: string) => path.replace(/^\/api/, ''),
+          },
+        }
+      })(),
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework

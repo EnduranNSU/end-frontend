@@ -1,10 +1,13 @@
 <template>
-  <div class="exercise-meta">
+  <!-- <div class="exercise-meta">
     <div class="meta-item">{{ $props.meta?.category || '—' }}</div>
     <div class="divider"></div>
     <div class="meta-item">{{ $props.meta?.equipment?.join(', ') || '—' }}</div>
     <div class="divider"></div>
-    <div class="meta-item">{{ $props.meta?.muscles?.join(', ') || '—' }}</div>
+    <div class="meta-item">{{ $props.meta?.muscles?.length ? '' : '—' }}</div>
+  </div> -->
+  <div v-if="$props.meta?.muscles && $props.meta.muscles.length" class="tags-container q-mt-sm">
+    <q-chip v-for="(t, idx) in $props.meta.muscles" :key="t + idx" dense outline class="tag-chip">{{ t }}</q-chip>
   </div>
 </template>
 
@@ -88,5 +91,18 @@ export default defineComponent({
     width: 2px;
     height: 20px;
   }
+}
+
+.tags-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 900px;
+  margin: 8px auto 0;
+}
+
+.tag-chip {
+  max-width: 100%;
 }
 </style>
