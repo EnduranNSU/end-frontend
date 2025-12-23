@@ -13,7 +13,7 @@ declare module 'vue' {
 // `VITE_API_BASE`, если он указан.
 const base = import.meta.env.DEV
   ? '/api' // проксируем через dev server
-  : (import.meta.env.VITE_API_BASE || 'http://localhost:8080')
+  : import.meta.env.VITE_API_BASE || 'http://localhost:8080'
 
 // Создаём общий экземпляр axios с предустановленным baseURL.
 const api = axios.create({ baseURL: base })

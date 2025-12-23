@@ -9,15 +9,7 @@
       <q-card-section>
         <q-form @submit.prevent="onSubmit" ref="formRef">
           <q-input v-model="username" label="Имя пользователя / Email" dense outlined required />
-          <q-input
-            v-model="password"
-            label="Пароль"
-            dense
-            outlined
-            type="password"
-            required
-            class="q-mt-sm"
-          />
+          <q-input v-model="password" label="Пароль" dense outlined type="password" required class="q-mt-sm" />
 
           <div class="row items-center q-mt-md">
             <q-btn label="Войти" type="submit" color="primary" :loading="submitting" />

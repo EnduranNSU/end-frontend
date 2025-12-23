@@ -19,48 +19,36 @@
       <div v-else class="q-mb-md filters">
         <div class="grid">
           <q-input v-model="exerciseQuery" label="Название упражнения" clearable dense filled />
-          <q-select
-            v-model="selectedTag"
-            :options="tagOptions"
-            label="Тег"
-            dense
-            clearable
-            :loading="tagsLoading"
-            emit-value
-            map-options
-          />
+          <q-select v-model="selectedTag" :options="tagOptions" label="Тег" dense clearable :loading="tagsLoading"
+            emit-value map-options />
         </div>
       </div>
 
       <!-- Lists -->
       <div v-if="mode === 'trainings'">
-          <div v-if="globalTrainingsLoading" class="empty-hint">Загрузка тренировок...</div>
-          <div v-else-if="globalTrainings.length">
-            <div class="cards-grid">
-              <q-card v-for="t in globalTrainings" :key="t.id" class="card">
-                <div class="card-body">
-                  <div class="card-title">{{ t.name }}</div>
-                  <div class="card-subtitle">{{ t.level }}</div>
-                  <div style="margin-top:6px; font-size:13px; color:#666">{{ t.description }}</div>
-                </div>
-              </q-card>
-            </div>
+        <div v-if="globalTrainingsLoading" class="empty-hint">Загрузка тренировок...</div>
+        <div v-else-if="globalTrainings.length">
+          <div class="cards-grid">
+            <q-card v-for="t in globalTrainings" :key="t.id" class="card">
+              <div class="card-body">
+                <div class="card-title">{{ t.name }}</div>
+                <div class="card-subtitle">{{ t.level }}</div>
+                <div style="margin-top:6px; font-size:13px; color:#666">{{ t.description }}</div>
+              </div>
+            </q-card>
           </div>
-          <div v-else>
-            <div v-if="!flattenedTrainings.length" class="empty-hint">Тренировок пока нет.</div>
-            <div class="cards-grid">
-              <q-card
-                v-for="t in filteredTrainings"
-                :key="t.id"
-                class="card"
-              >
-                <div class="card-body">
-                  <div class="card-title">{{ t.name }}</div>
-                  <div class="card-subtitle">Папка: {{ t.folderName }}</div>
-                </div>
-              </q-card>
-            </div>
+        </div>
+        <div v-else>
+          <div v-if="!flattenedTrainings.length" class="empty-hint">Тренировок пока нет.</div>
+          <div class="cards-grid">
+            <q-card v-for="t in filteredTrainings" :key="t.id" class="card">
+              <div class="card-body">
+                <div class="card-title">{{ t.name }}</div>
+                <div class="card-subtitle">Папка: {{ t.folderName }}</div>
+              </div>
+            </q-card>
           </div>
+        </div>
       </div>
 
       <div v-else>

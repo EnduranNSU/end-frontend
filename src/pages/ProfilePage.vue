@@ -23,17 +23,11 @@
       <q-card flat bordered class="q-pa-md rounded-card">
         <div v-if="measurementsLoading" class="text-center">Загрузка замеров...</div>
         <div v-else>
-          <div v-for="m in measurements" :key="m.id ?? m.type" class="row items-center q-gutter-sm q-mb-sm">
+          <div v-for="m in latestMeasurements" :key="m.id ?? m.type" class="row items-center q-gutter-sm q-mb-sm">
             <div class="col-4">{{ m.type }}</div>
             <div class="col">
-              <q-select
-                v-if="String(m.type).toLowerCase() === 'пол'"
-                dense
-                v-model.number="m.value"
-                :options="genderOptions"
-                emit-value
-                map-options
-              />
+              <q-select v-if="String(m.type).toLowerCase() === 'пол'" dense v-model.number="m.value"
+                :options="genderOptions" emit-value map-options />
               <q-input v-else dense v-model.number="m.value" type="number" />
             </div>
           </div>
@@ -46,10 +40,54 @@
 
     <section class="q-mt-lg">
       <h5 class="section-title">Мониторинг</h5>
-      <div class="text-grey-6 q-pt-xs">Скоро появятся графики прогресса.</div>
+      <q-card flat bordered class="q-pa-md rounded-card">
+        <div class="row items-center q-gutter-sm q-mb-md">
+          <div class="col">
+            <div class="measurement-chips row no-wrap q-gutter-sm">
+              <q-chip v-for="opt in measurementTypes" :key="opt" clickable outline :dense="true"
+                :color="opt === selectedMeasurement ? 'primary' : undefined" @click="() => selectedMeasurement = opt">
+                {{ opt }}
+              </q-chip>
+            </div>
+            <div class="q-mt-sm q-gutter-sm">
+              <q-segment v-model="timeRange" dense :options="timeRangeOptions" />
+            </div>
+          </div>
+        </div>
+
+        <div v-if="measurementsLoading" class="text-center">Загрузка...</div>
+
+        <div v-else-if="!selectedMeasurement">
+          <div class="text-grey-6">Выберите параметр для отображения графика.</div>
+        </div>
+
+        <div v-else>
+          <div v-if="chartPoints.length === 0" class="text-grey-6">Нет данных для выбранного параметра.</div>
+          <div v-else class="chart-container">
+            <svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" width="100%" :height="chartHeight"
+              preserveAspectRatio="none" class="chart-svg">
+              <path :d="linePath" fill="none" stroke="#1976d2" stroke-width="2" stroke-linejoin="round"
+                stroke-linecap="round" />
+              <g v-for="(p, i) in chartPoints" :key="i">
+                <circle :cx="p.x" :cy="p.y" r="3" fill="#1976d2" />
+                <title>{{ p.label }}</title>
+              </g>
+            </svg>
+            <div class="chart-controls q-mt-sm">
+              <div class="chart-axis q-mt-xs">
+                <div class="row items-center">
+                  <div class="col text-left text-caption">{{ tickLabels[0] }}</div>
+                  <div class="col text-center text-caption">{{ tickLabels[1] }}</div>
+                  <div class="col text-right text-caption">{{ tickLabels[2] }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </q-card>
     </section>
 
-    
+
 
     <q-dialog v-model="editOpened">
       <q-card style="min-width: 340px; max-width: 92vw">
@@ -66,7 +104,8 @@
               <q-input v-model="draft.email" type="email" label="Email" dense />
               <q-input v-model.number="draft.weight" type="number" label="Вес" dense :suffix="'кг'" />
               <q-input v-model.number="draft.fatPercent" type="number" label="% жировой массы" dense :suffix="'%'" />
-              <q-input v-model.number="draft.calories" type="number" label="Потребление калорий" dense :suffix="'ккал'" />
+              <q-input v-model.number="draft.calories" type="number" label="Потребление калорий" dense
+                :suffix="'ккал'" />
               <q-input v-model="draft.bodyparts" type="text" label="Части тела" dense autogrow />
             </div>
             <div class="row q-gutter-sm q-mt-md">
@@ -83,7 +122,7 @@
 
 <script setup lang="ts">
 import BottomNavBar from 'src/components/BottomNavBar.vue'
-import { onMounted, ref, watch } from 'vue'
+import { onMounted, onBeforeMount, ref, watch, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
@@ -174,15 +213,13 @@ async function fetchUser() {
   } catch (err: unknown) {
     // If user is not authenticated, redirect to sign in
     try {
-      // attempt to read status safely
-      // @ts-ignore
-      const status = err && err.response && err.response.status
+      const status = (err as any)?.response?.status
       if (status === 401) {
         $q.notify({ type: 'warning', message: 'Требуется авторизация' })
         void router.push('/signin')
         return
       }
-    } catch (_) {
+    } catch {
       // ignore
     }
     console.warn('Failed to fetch user profile', err)
@@ -194,6 +231,8 @@ function persist() {
     console.warn('Failed to save profile to localStorage', e)
   }
 }
+
+
 
 const editOpened = ref(false)
 const saving = ref(false)
@@ -219,7 +258,6 @@ function saveEdit() {
 // share functionality removed per request (buttons hidden)
 
 // ---------------- measurements handling ----------------
-import { onBeforeMount } from 'vue'
 
 type Measurement = {
   id?: number
@@ -267,7 +305,7 @@ async function loadMeasurements() {
         void router.push('/signin')
         return
       }
-    } catch (_) {}
+    } catch (_) { }
     console.warn('Failed to load measurements', err)
     $q.notify({ type: 'negative', message: 'Не удалось загрузить замеры' })
   } finally {
@@ -299,44 +337,71 @@ async function saveMeasurements() {
   try {
     // Get current server list (baseline) because update replaces all entries
     const resp = await api.get('/measurements/')
-    const serverList: Measurement[] = Array.isArray(resp.data) ? resp.data : []
+    const serverList: Measurement[] = Array.isArray(resp.data) ? resp.data.map((s: any) => ({ ...s })) : []
 
-    const serverByType = new Map<string, Measurement>()
-    for (const s of serverList) serverByType.set(String(s.type).toLowerCase(), s)
-
-    // Merge: for each server item, prefer local edit if exists
-    const merged: { type: string; value: number | string | null; date: string }[] = []
+    // Build a mutable copy of server list keyed by id (if present)
+    const serverById = new Map<string | number, Measurement>()
     for (const s of serverList) {
-      const key = String(s.type).toLowerCase()
-      const local = measurements.value.find(m => String(m.type).toLowerCase() === key)
-      let val = local ? (local.value ?? s.value ?? 0) : (s.value ?? 0)
-      if (key === 'пол') val = Number(val) || 0
-      merged.push({ type: s.type, value: val, date: s.date || new Date().toISOString() })
-    }
-
-    // Add any local-only items
-    for (const l of measurements.value) {
-      const key = String(l.type).toLowerCase()
-      if (!serverByType.has(key)) {
-        let v: any = l.value ?? 0
-        if (key === 'пол') v = Number(v) || 0
-        merged.push({ type: l.type, value: v, date: l.date || new Date().toISOString() })
+      if ((s as any).id !== undefined && (s as any).id !== null) serverById.set(String((s as any).id), { ...s })
+      else {
+        const status = (err as any)?.response?.status
       }
     }
 
-    await api.post('/measurements/update', merged)
+    // Helper to generate negative integer IDs on the client to avoid colliding with server positive IDs
+    let clientIdCounter = -Date.now()
+    function generateClientId() { clientIdCounter -= 1; return clientIdCounter }
+
+    // Start merged array as copy of serverList (we'll update records in place)
+    const mergedItems: { id: number | undefined; type: string; value: number | string | null; date: string }[] = serverList.map(s => ({
+      id: (s as any).id !== undefined && (s as any).id !== null ? Number((s as any).id) : undefined,
+      type: s.type,
+      value: s.value ?? 0,
+      date: s.date || new Date().toISOString(),
+    }))
+
+    // Update existing server items by id if local edits exist; otherwise append local-only items with generated client id
+    for (const l of measurements.value) {
+      const lid = (l as any).id !== undefined && (l as any).id !== null ? String((l as any).id) : null
+      if (lid && serverById.has(lid)) {
+        // find in mergedItems by id and update
+        const idx = mergedItems.findIndex(mi => mi.id !== undefined && String(mi.id) === lid)
+        if (idx !== -1) {
+          const mi = mergedItems[idx]!
+          mi.value = (l.value ?? mi.value)
+          mi.date = l.date || mi.date || new Date().toISOString()
+        }
+      } else {
+        // local-only: create new item with generated client id (negative number)
+        const key = lid || `${l.type}:${l.date || ''}:${Math.random()}`
+        // ensure we don't duplicate by same key
+        const exists = mergedItems.find(mi => String(mi.type) === String(l.type) && (mi.date || '') === (l.date || ''))
+        if (exists) {
+          exists.value = l.value ?? exists.value
+          exists.date = l.date || exists.date
+        } else {
+          const newId = typeof (l as any).id === 'number' && Number((l as any).id) !== 0 ? Number((l as any).id) : generateClientId()
+          mergedItems.push({ id: newId, type: l.type, value: l.value ?? 0, date: l.date || new Date().toISOString() })
+        }
+      }
+    }
+
+    await api.post('/measurements/update', mergedItems)
     $q.notify({ type: 'positive', message: 'Замеры сохранены' })
     await loadMeasurements()
   } catch (err: unknown) {
     try {
-      // @ts-ignore
-      const status = err && err.response && err.response.status
+      const status = (err as any)?.response?.status
       if (status === 401) {
         $q.notify({ type: 'warning', message: 'Требуется авторизация' })
         void router.push('/signin')
         return
       }
-    } catch (_) {}
+      // If server returned 500 on update — silently ignore (do not persist locally)
+      if (status === 500) {
+        return
+      }
+    } catch (_) { }
     console.warn('Failed to save measurements', err)
     $q.notify({ type: 'negative', message: 'Не удалось сохранить замеры' })
   } finally {
@@ -372,19 +437,178 @@ async function loadTrainings() {
         void router.push('/signin')
         return
       }
-    } catch (_) {}
+    } catch (_) { }
     console.warn('Failed to load trainings', err)
   } finally {
     trainingsLoading.value = false
   }
 }
+
+// ---------------- chart/dashboard helpers ----------------
+const selectedMeasurement = ref<string | null>(null)
+
+const measurementOptions = computed(() => {
+  // unique measurement types from measurements, excluding Age and Gender
+  const exclude = ['возраст', 'пол']
+  const types = Array.from(new Set(measurements.value.map(m => String(m.type))))
+  return types
+    .filter(t => !exclude.includes(String(t).toLowerCase()))
+    .map(t => ({ label: t, value: t }))
+})
+
+// measurementTypes: simpler array of strings used for chips UI
+const measurementTypes = computed(() => measurementOptions.value.map(o => o.value))
+
+const chartWidth = 720
+const chartHeight = 260
+const chartPadding = 24
+
+// latestMeasurements: map measurements -> take last entry per type by date
+const latestMeasurements = computed(() => {
+  const byType = new Map<string, Measurement>()
+  for (const m of measurements.value) {
+    const key = String(m.type).toLowerCase()
+    const date = m.date ? new Date(m.date) : null
+    const existing = byType.get(key)
+    if (!existing) {
+      byType.set(key, m)
+      continue
+    }
+    const exDate = existing.date ? new Date(existing.date) : null
+    if (!exDate && date) byType.set(key, m)
+    else if (date && exDate && date.getTime() >= exDate.getTime()) byType.set(key, m)
+  }
+  return Array.from(byType.values())
+})
+
+const timeRange = ref<'week' | 'month' | 'year' | 'all'>('all')
+const timeRangeOptions = [
+  { label: 'Неделя', value: 'week' },
+  { label: 'Месяц', value: 'month' },
+  { label: 'Год', value: 'year' },
+  { label: 'Все', value: 'all' },
+]
+
+function withinRange(date: Date, range: string) {
+  const now = new Date()
+  if (range === 'all') return true
+  const diff = now.getTime() - date.getTime()
+  if (range === 'week') return diff <= 1000 * 60 * 60 * 24 * 7
+  if (range === 'month') return diff <= 1000 * 60 * 60 * 24 * 30
+  if (range === 'year') return diff <= 1000 * 60 * 60 * 24 * 365
+  return true
+}
+
+const chartPoints = computed(() => {
+  if (!selectedMeasurement.value) return []
+  const rows = measurements.value.filter(m => String(m.type) === selectedMeasurement.value)
+  const parsed = rows
+    .map(r => ({
+      date: r.date ? new Date(r.date) : null,
+      value: typeof r.value === 'string' ? Number(r.value) : (r.value ?? 0)
+    }))
+    .filter(p => p.date && !isNaN(p.date.getTime()) && !isNaN(Number(p.value)))
+    .sort((a, b) => (a.date!.getTime() - b.date!.getTime()))
+
+  const filtered = parsed.filter(p => withinRange(p.date!, timeRange.value))
+  if (!filtered.length) return []
+
+  const first = filtered[0]!
+  const last = filtered[filtered.length - 1]!
+  const minDate = first.date!.getTime()
+  const maxDate = last.date!.getTime()
+  const values = filtered.map(p => Number(p.value))
+  const minV = Math.min(...values)
+  const maxV = Math.max(...values)
+  const dateRange = Math.max(1, maxDate - minDate)
+  const valueRange = Math.max(1e-6, maxV - minV)
+
+  return filtered.map((p) => {
+    const t = p.date!.getTime()
+    const x = chartPadding + ((t - minDate) / dateRange) * (chartWidth - chartPadding * 2)
+    const y = chartPadding + (1 - ((Number(p.value) - minV) / valueRange)) * (chartHeight - chartPadding * 2)
+    return { x, y, value: p.value, label: `${p.date!.toLocaleDateString()}: ${p.value}`, date: p.date }
+  })
+})
+
+const linePath = computed(() => {
+  const pts = chartPoints.value
+  if (!pts.length) return ''
+  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')
+})
+
+function formatDateLabel(d?: Date | null) {
+  if (!d) return ''
+  // short date: DD.MM
+  return `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`
+}
+
+const tickLabels = computed(() => {
+  const pts = chartPoints.value
+  if (!pts.length) return ['', '', '']
+  const first = pts[0].date!
+  const last = pts[pts.length - 1].date!
+  const mid = new Date((first.getTime() + last.getTime()) / 2)
+  return [formatDateLabel(first), formatDateLabel(mid), formatDateLabel(last)]
+})
+
+// auto-select first available measurement when list loads
+watch(measurementOptions, (opts) => {
+  if ((!selectedMeasurement.value || selectedMeasurement.value === '') && opts && opts.length) {
+    const first = opts[0] as { value: string }
+    selectedMeasurement.value = first.value
+  }
+})
 </script>
 
 <style scoped>
-.page-with-nav { padding-bottom: 88px; }
-.section-title { font-size: 16px; font-weight: 600; color: #2b2b2b; margin: 6px 0 8px; }
-.rounded-card { border-radius: 12px; }
-.chips-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
-.chip { border-radius: 12px; }
-.clickable { cursor: pointer; }
+.page-with-nav {
+  padding-bottom: 88px;
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2b2b2b;
+  margin: 6px 0 8px;
+}
+
+.rounded-card {
+  border-radius: 12px;
+}
+
+.chips-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.chip {
+  border-radius: 12px;
+}
+
+.clickable {
+  cursor: pointer;
+}
+
+.chart-container {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.chart-svg {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 6px;
+}
+
+.chart-legend {
+  font-size: 13px;
+  color: #666;
+  margin-top: 8px;
+}
 </style>
