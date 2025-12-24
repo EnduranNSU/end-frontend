@@ -23,6 +23,13 @@ export default defineBoot(({ app }) => {
   // чтобы в компонентах можно было использовать this.$axios / this.$api
   app.config.globalProperties.$axios = axios
   app.config.globalProperties.$api = api
+  // Если в localStorage уже есть токен — установим заголовок Authorization сразу при boot
+  try {
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  } catch (e) {
+    // ignore localStorage errors
+  }
 })
 
 export { api }

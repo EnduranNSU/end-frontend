@@ -30,54 +30,15 @@
           </div>
         </q-card>
 
-        <q-card class="card new-workout clickable" @click="openCreatePlannedDialog()">
-          <div class="card-body">
-            <div class="card-title">Новая тренировка</div>
-            <div class="card-dots">•••</div>
-          </div>
-        </q-card>
-
-        <q-card class="card drop-hint">
-          <div class="card-body">
-            <div class="card-title small" @click="onDropHintClick()">Перетащите шаблон<br />или нажмите, чтобы добавить
-            </div>
-          </div>
-        </q-card>
+        <!-- only planned trainings are shown here -->
+      </div>
+      <!-- New training button under My workouts -->
+      <div class="q-mt-md" style="display:flex; justify-content:center;">
+        <q-btn unelevated color="primary" icon="add" label="Новая тренировка" @click="openCreatePlannedDialog" />
       </div>
     </section>
 
-    <!-- Folders and their trainings -->
-    <section class="section">
-      <div class="toolbar q-mb-sm" style="display:flex; gap:8px; justify-content:center;">
-        <q-btn color="primary" flat icon="add" label="Добавить папку" @click="onCreateFolder" />
-      </div>
-
-      <div v-if="!folders.length" class="q-pa-sm flex column items-center" style="opacity:.7;">
-        <div>Папок пока нет. Создайте первую.</div>
-      </div>
-
-      <div v-for="folder in folders" :key="folder.id" class="q-mt-md">
-        <h4 class="section-title" style="margin-top: 8px;">{{ folder.name }}</h4>
-        <div class="cards-grid">
-          <!-- Show drop hint when folder is empty -->
-          <q-card v-if="!(folder.trainings && folder.trainings.length)" class="card drop-hint"
-            @click="onDropHintClick(folder.id)">
-            <div class="card-body">
-              <div class="card-title small">Перетащите шаблон<br />или нажмите, чтобы добавить</div>
-            </div>
-          </q-card>
-
-          <!-- Render trainings of folder -->
-          <q-card v-for="t in (folder.trainings || [])" :key="t.id" class="card new-workout">
-            <div class="card-body">
-              <div class="card-title">{{ t.name }}</div>
-              <q-btn class="card-dots" size="sm" flat round icon="delete"
-                @click.stop="onRemoveTraining(folder.id, t.id)" />
-            </div>
-          </q-card>
-        </div>
-      </div>
-    </section>
+    <!-- folders removed: only 'Мои тренировки' supported in UI -->
 
     <!-- Fixed bottom nav -->
     <BottomNavBar v-model="activeTab" @navigate="onNavigate" />
@@ -143,15 +104,13 @@
 
 <script setup lang="ts">
 import { onMounted, computed, ref, watch } from 'vue'
-import { useFoldersStore } from '../stores/folders'
 import BottomNavBar from '../components/BottomNavBar.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { useQuasar } from 'quasar'
 import { usePlannedDraftStore } from 'src/stores/plannedDraft'
 
-const foldersStore = useFoldersStore()
-const folders = computed(() => foldersStore.folders)
+// folders UI removed — keeping only planned trainings
 
 const router = useRouter()
 const route = useRoute()
@@ -294,7 +253,6 @@ function openPlanned(id: number) {
 }
 
 onMounted(() => {
-  foldersStore.refreshFromStorage()
   syncTabWithRoute()
   // if we have a saved token, set Authorization header before fetching
   try {
@@ -348,15 +306,15 @@ function syncTabWithRoute() {
 }
 
 function onCreateFolder() {
-  foldersStore.addFolder()
+  // folders removed — no-op
 }
 
 function onRemoveTraining(folderId: string, trainingId: string) {
-  foldersStore.removeTraining(folderId, trainingId)
+  // folders removed — no-op
 }
 
 function onDropHintClick(folderId?: string) {
-  console.log('Drop-hint clicked', folderId)
+  // folders/drop-hint removed
 }
 
 function onNavigate(key: string) {
