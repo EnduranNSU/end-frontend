@@ -11,7 +11,7 @@
     <!-- Big rounded CTA button -->
     <div class="cta-wrapper">
       <q-btn class="quick-training" label="НАЧАТЬ ТЕКУЩУЮ ТРЕНИРОВКУ" no-caps unelevated size="lg"
-        style="height: 10vh" />
+        style="height: 10vh" @click="quickStart" />
     </div>
 
     <!-- My workouts (quick actions) -->
@@ -138,6 +138,33 @@ const newPlanned = ref<any>({
 const exercises = ref<{ id: number; title: string }[]>([])
 
 const exerciseOptions = computed(() => exercises.value.map((e) => ({ label: e.title, value: e.id })))
+
+function todayWeekdayCode() {
+  const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  return map[new Date().getDay()]
+}
+
+async function quickStart() {
+  try {
+    const todayCode = todayWeekdayCode()
+    const found = plannedTrainings.value.find((p: any) => Array.isArray(p.weekdays) && p.weekdays.includes(todayCode))
+    if (!found) {
+      $q.notify({ type: 'warning', message: 'Нет запланированных тренировок на сегодня' })
+      return
+    }
+    // create performed training in API-expected shape (no top-level date)
+    // open in-progress session for quick start instead of creating immediately
+    const plannedId = Number(found.id)
+    if (plannedId) {
+      void router.push({ path: '/performedTraining', query: { plannedId: String(plannedId), mode: 'inprogress' } })
+    } else {
+      $q.notify({ type: 'negative', message: 'Не удалось определить запланированную тренировку' })
+    }
+  } catch (err) {
+    console.error('Quick start failed', err)
+    $q.notify({ type: 'negative', message: 'Не удалось начать тренировку' })
+  }
+}
 
 async function fetchExercises() {
   try {

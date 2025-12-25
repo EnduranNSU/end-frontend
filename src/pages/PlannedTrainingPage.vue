@@ -25,12 +25,13 @@
                 <div class="text-caption q-mt-xs">Дни недели: {{ (planned.weekdays || []).join(', ') || '—' }}</div>
               </div>
               <div class="col-auto">
-                <div class="row items-center q-gutter-sm">
-                  <q-btn dense round flat icon="edit" color="primary" @click="openEdit" label=""
-                    aria-label="Редактировать" />
-                  <q-btn dense round flat icon="delete" color="negative" @click="confirmDelete" label=""
-                    aria-label="Удалить" />
-                </div>
+                  <div class="row items-center q-gutter-sm">
+                    <q-btn dense round flat icon="play_arrow" color="positive" @click="startPlannedTraining" label="" aria-label="Начать" />
+                    <q-btn dense round flat icon="edit" color="primary" @click="openEdit" label=""
+                      aria-label="Редактировать" />
+                    <q-btn dense round flat icon="delete" color="negative" @click="confirmDelete" label=""
+                      aria-label="Удалить" />
+                  </div>
               </div>
             </div>
           </q-card>
@@ -140,6 +141,37 @@ const weekdaysOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const exercises = ref<{ id: number; title: string }[]>([])
 const exerciseOptions = computed(() => exercises.value.map((e) => ({ label: e.title, value: e.id })))
 const newExerciseToAdd = ref<number | null>(null)
+
+// start planned training as a performed training (today)
+async function startPlannedTraining() {
+  if (!planned.value || !planned.value.training) return
+  try {
+    // transform planned.training -> API expected shape: training.perfomable_exercises with exercise_id and sets
+    const perf = (planned.value.training?.perfomable_exercises || []).map((pe: any) => ({
+      exercise_id: Number(pe.exercise?.id ?? pe.exercise_id ?? 0),
+      sets: (pe.sets || []).map((s: any) => ({ weight: Number(s.weight || 0), repetitions: Number(s.repetitions || 0), rest_duration: Number(s.rest_duration || 0) })),
+    }))
+    const today = new Date().toISOString().split('T')[0]
+    const payload = {
+      date: today,
+      weekdays: planned.value.weekdays || [],
+      training: {
+        title: planned.value.training?.title || '',
+        perfomable_exercises: perf,
+      },
+    }
+    // open an in-progress performed session (do not create server record yet)
+    const plannedId = Number(planned.value.id)
+    if (plannedId) {
+      void router.push({ path: '/performedTraining', query: { plannedId: String(plannedId), mode: 'inprogress' } })
+    } else {
+      $q.notify({ type: 'negative', message: 'Не удалось определить id тренировки' })
+    }
+  } catch (err) {
+    console.error('Failed to start planned training', err)
+    $q.notify({ type: 'negative', message: 'Не удалось начать тренировку' })
+  }
+}
 
 async function fetchExercises() {
   try {
