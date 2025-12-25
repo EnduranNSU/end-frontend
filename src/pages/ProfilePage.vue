@@ -9,6 +9,7 @@
         <div class="text-grey-7">{{ profile.workouts }} тренировок</div>
       </div>
       <q-space />
+      <q-btn color="primary" dense label="Расскажи о себе" @click="tellAbout" />
     </section>
 
     <section class="q-mt-md">
@@ -169,6 +170,19 @@ type Profile = {
 }
 
 const LS_KEY = 'enduran.profile'
+
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+function tellAbout() {
+  const chatId = uuidv4()
+  void router.push({ path: '/coach', query: { mode: 'tell_about', chat_id: chatId } })
+}
 
 const profile = ref<Profile>({
   name: 'Пайпик',

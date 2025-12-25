@@ -208,17 +208,22 @@ async function onSend() {
   try {
     // determine chat_id and exercise_id from route (if provided)
     const chatId = String(route.query.chat_id || route.query.chatId || uuidv4())
+    const mode = String(route.query.mode || '')
     const exerciseId = Number(route.query.exercise_id || route.query.exerciseId || route.query.id || route.params.id || 0)
 
-    const payload = {
+    const basePayload: any = {
       message: text,
       user_token: (localStorage.getItem('access_token') || ''),
       user_id: Number(userIdRef.value || 0),
-      exercise_id: exerciseId,
       chat_id: chatId,
     }
-    console.log('POST -> /agent/exercise (proxied to /api/agent/exercise)', payload)
-    const resp = await api.post('/agent/exercise', payload)
+
+    // add exercise_id only when in exercise mode
+    if (mode !== 'tell_about') basePayload.exercise_id = exerciseId
+
+    const endpoint = mode === 'tell_about' ? '/agent/tell_about' : '/agent/exercise'
+    console.log(`POST -> ${endpoint} (proxied to /api${endpoint})`, basePayload)
+    const resp = await api.post(endpoint, basePayload)
     const replyText = typeof resp.data === 'string' ? resp.data : (resp.data?.reply || JSON.stringify(resp.data))
     const rid = (messages.value.at(-1)?.id || 0) + 1
     messages.value.push({ id: rid, text: replyText, mine: false, stamp: ts() })
