@@ -14,28 +14,30 @@
     </q-card>
 
     <div v-else>
-        <q-card flat bordered class="q-pa-md rounded-card q-mb-md">
-          <div class="row items-center">
-            <div class="col">
-              <div class="text-subtitle1">Дата: {{ item.date || '—' }}</div>
-              <div class="text-caption q-mt-sm">Название: {{ item.training?.title || '—' }}</div>
-            </div>
-              <div class="col-auto" v-if="inProgress">
-                <div class="text-h6">{{ formatElapsed(elapsed) }}</div>
-              </div>
+      <q-card flat bordered class="q-pa-md rounded-card q-mb-md">
+        <div class="row items-center">
+          <div class="col">
+            <div class="text-subtitle1">Дата: {{ item.date || '—' }}</div>
+            <div class="text-caption q-mt-sm">Название: {{ item.training?.title || '—' }}</div>
           </div>
-          <div v-if="inProgress" class="q-mt-sm row items-center">
-            <div class="col-6">
-              <q-input dense type="number" v-model.number="globalRest" label="Отдых между сетами (сек)" @change="applyGlobalRest" />
-            </div>
-            <div class="col-6 text-caption">Установите общий отдых, он будет применён ко всем сетам</div>
+          <div class="col-auto" v-if="inProgress">
+            <div class="text-h6">{{ formatElapsed(elapsed) }}</div>
           </div>
-          <div class="q-mt-md">
-            <q-btn dense flat label="Редактировать" color="primary" @click="openEdit" v-if="!inProgress" />
-            <q-btn dense flat label="Удалить" color="negative" @click="confirmDelete" class="q-ml-sm" v-if="!inProgress" />
-            <q-btn dense color="primary" label="Закончить тренировку" @click="finishWorkout" v-if="inProgress" />
+        </div>
+        <div v-if="inProgress" class="q-mt-sm row items-center">
+          <div class="col-6">
+            <q-input dense type="number" v-model.number="globalRest" label="Отдых между сетами (сек)"
+              @change="applyGlobalRest" />
           </div>
-        </q-card>
+          <div class="col-6 text-caption">Установите общий отдых, он будет применён ко всем сетам</div>
+        </div>
+        <div class="q-mt-md">
+          <q-btn dense flat label="Редактировать" color="primary" @click="openEdit" v-if="!inProgress" />
+          <q-btn dense flat label="Удалить" color="negative" @click="confirmDelete" class="q-ml-sm"
+            v-if="!inProgress" />
+          <q-btn dense color="primary" label="Закончить тренировку" @click="finishWorkout" v-if="inProgress" />
+        </div>
+      </q-card>
 
       <div v-for="(pe, idx) in item.training?.perfomable_exercises || []" :key="idx" class="q-mb-sm">
         <q-card flat bordered class="q-pa-sm">
@@ -49,7 +51,8 @@
             </div>
           </div>
 
-          <div v-for="(s, sIdx) in pe.sets || []" :key="sIdx" class="q-mb-sm q-pa-sm" style="border-top:1px dashed var(--q-color-grey-3)">
+          <div v-for="(s, sIdx) in pe.sets || []" :key="sIdx" class="q-mb-sm q-pa-sm"
+            style="border-top:1px dashed var(--q-color-grey-3)">
             <div class="row items-center q-gutter-sm">
               <div class="col-3">
                 <q-input dense type="number" v-model.number="s.repetitions" label="reps" />
@@ -61,21 +64,23 @@
                 <div class="text-caption">rest: {{ s.rest_duration || 60 }}s</div>
               </div>
               <div class="col-auto">
-                <q-btn dense color="positive" icon="check" :flat="!isSetDone(idx,sIdx)" @click="markSetDone(idx,sIdx)" :label="isSetDone(idx,sIdx) ? 'Done' : 'Done'" />
+                <q-btn dense color="positive" icon="check" :flat="!isSetDone(idx, sIdx)" @click="markSetDone(idx, sIdx)"
+                  :label="isSetDone(idx, sIdx) ? 'Done' : 'Done'" />
               </div>
             </div>
 
-                      <div class="row items-center q-mt-sm">
-                        <div class="col-auto">
-                          <q-chip dense color="green" text-color="white" v-if="isSetDone(idx,sIdx)">Выполнен</q-chip>
-                        </div>
-                        <div class="col">
-                          <div class="text-caption">
-                            <span v-if="getTimer(idx,sIdx) && getTimer(idx,sIdx).running">Осталось отдыха: {{ getTimer(idx,sIdx).remaining }} с</span>
-                            <span v-else>Отдых: {{ s.rest_duration || 60 }} с</span>
-                          </div>
-                        </div>
-                      </div>
+            <div class="row items-center q-mt-sm">
+              <div class="col-auto">
+                <q-chip dense color="green" text-color="white" v-if="isSetDone(idx, sIdx)">Выполнен</q-chip>
+              </div>
+              <div class="col">
+                <div class="text-caption">
+                  <span v-if="getTimer(idx, sIdx) && getTimer(idx, sIdx).running">Осталось отдыха: {{
+                    getTimer(idx,sIdx).remaining }} с</span>
+                  <span v-else>Отдых: {{ s.rest_duration || 60 }} с</span>
+                </div>
+              </div>
+            </div>
           </div>
         </q-card>
       </div>
@@ -358,7 +363,7 @@ function formatElapsed(sec: number) {
   const s = Math.max(0, Math.floor(sec))
   const mm = Math.floor(s / 60)
   const ss = s % 60
-  return `${mm.toString().padStart(2,'0')}:${ss.toString().padStart(2,'0')}`
+  return `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`
 }
 
 function isSetDone(peIdx: number, setIdx: number) {
@@ -408,5 +413,7 @@ async function markSetDone(peIdx: number, setIdx: number) {
 </script>
 
 <style scoped>
-.page-with-nav { padding-bottom: 88px }
+.page-with-nav {
+  padding-bottom: 88px
+}
 </style>

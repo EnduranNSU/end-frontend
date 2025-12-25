@@ -112,6 +112,17 @@ export default defineConfig(ctx => {
         console.log('[dev] proxy /api ->', normalized)
 
         return {
+          // Specific proxy for the agent service (runs on port 8080).
+          // This ensures calls to `/api/agent/...` are forwarded to the agent
+          // without CORS issues during development.
+          '/api/agent': {
+            target: 'http://localhost:8080',
+            changeOrigin: true,
+            secure: false,
+            // Remove the leading `/api` before forwarding so the agent
+            // receives paths like `/agent/exercise` (agent expects no /api prefix).
+            rewrite: (path: string) => path.replace(/^\/api/, ''),
+          },
           '/api': {
             target: normalized,
             changeOrigin: true,

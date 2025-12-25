@@ -10,8 +10,8 @@
 
     <!-- Big rounded CTA button -->
     <div class="cta-wrapper">
-      <q-btn class="quick-training" label="НАЧАТЬ ТЕКУЩУЮ ТРЕНИРОВКУ" no-caps unelevated size="lg"
-        style="height: 10vh" @click="quickStart" />
+      <q-btn class="quick-training" label="НАЧАТЬ ТЕКУЩУЮ ТРЕНИРОВКУ" no-caps unelevated size="lg" style="height: 10vh"
+        @click="quickStart" />
     </div>
 
     <!-- My workouts (quick actions) -->
@@ -140,7 +140,7 @@ const exercises = ref<{ id: number; title: string }[]>([])
 const exerciseOptions = computed(() => exercises.value.map((e) => ({ label: e.title, value: e.id })))
 
 function todayWeekdayCode() {
-  const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+  const map = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
   return map[new Date().getDay()]
 }
 

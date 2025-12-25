@@ -6,7 +6,8 @@
     </div>
 
     <div>
-      <ExerciseDetail :videoSrc="videoSrc" :instruction="exercise?.description" :meta="meta" />
+      <ExerciseDetail :videoSrc="videoSrc" :instruction="exercise?.description" :meta="meta"
+        :exerciseId="exercise?.id" />
     </div>
 
   </q-page>

@@ -42,6 +42,9 @@
 
 <script lang="ts">
 import { defineComponent, ref, computed } from 'vue';
+import { useRouter } from 'vue-router'
+import { api } from 'src/boot/axios'
+import { useQuasar } from 'quasar'
 import ExerciseMeta from './ExerciseMeta.vue';
 
 interface Meta {
@@ -57,8 +60,11 @@ export default defineComponent({
     videoSrc: { type: String, default: undefined },
     instruction: { type: String, default: undefined },
     meta: { type: Object as () => Meta | null, default: null },
+    exerciseId: { type: Number, default: 0 },
   },
   setup(props) {
+    const router = useRouter()
+    const $q = useQuasar()
     const isPlaying = ref(false);
     const videoEl = ref<HTMLVideoElement | null>(null);
     const expanded = ref(false)
@@ -90,10 +96,22 @@ export default defineComponent({
       // when expanding, ensure video isn't hidden or scrolled; no further action needed
     }
 
+    function uuidv4() {
+      // simple UUIDv4 generator
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+        const r = (Math.random() * 16) | 0
+        const v = c === 'x' ? r : (r & 0x3) | 0x8
+        return v.toString(16)
+      })
+    }
+
     const goToVirtualCoach = () => {
-      // TODO: Добавить навигацию на страницу виртуального коуча
-      console.log('Navigating to virtual coach...');
-    };
+      // Only navigate to the Virtual Coach page with context.
+      // Do NOT send any initial request to the agent here — user will start the conversation in the chat UI.
+      const exId = Number(props.exerciseId || 0)
+      const chatId = uuidv4()
+      void router.push({ path: '/coach', query: { chat_id: chatId, exercise_id: String(exId) } })
+    }
 
     return { videoEl, isPlaying, togglePlay, goToVirtualCoach, paragraphs, expanded, toggleExpanded };
   },

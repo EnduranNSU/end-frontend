@@ -8,18 +8,15 @@
     </q-toolbar>
 
     <div class="chat-area col bg-grey-1">
-      <q-scroll-area ref="scrollAreaRef" class="fit">
+      <div ref="scrollAreaRef" class="fit chat-scroll">
         <div class="q-pa-md q-gutter-md">
-          <q-chat-message
-            v-for="m in messages"
-            :key="m.id"
-            :sent="m.mine"
-            :text="[m.text]"
-            :stamp="m.stamp"
-            :avatar="m.mine ? userAvatar : botAvatar"
-            :bg-color="m.mine ? 'primary' : 'white'"
-            :text-color="m.mine ? 'white' : 'dark'"
-          />
+          <!-- Simple chat bubbles (always visible) -->
+          <div v-for="m in messages" :key="m.id" class="chat-bubble" :class="{ mine: m.mine }">
+            <div class="bubble-inner">
+              <div class="bubble-text">{{ m.text }}</div>
+              <div class="bubble-meta">{{ m.stamp }}</div>
+            </div>
+          </div>
 
           <div v-if="typing" class="typing-indicator row items-center q-mt-sm">
             <q-avatar size="28px">
@@ -30,21 +27,13 @@
             </div>
           </div>
         </div>
-      </q-scroll-area>
+      </div>
     </div>
 
     <div class="composer q-pa-sm bg-white">
       <div class="row items-end no-wrap">
-        <q-input
-          v-model="draft"
-          class="col"
-          type="textarea"
-          autogrow
-          dense
-          standout
-          placeholder="Напишите сообщение..."
-          @keyup.enter.exact="onSend"
-        />
+        <q-input v-model="draft" class="col" type="textarea" autogrow dense standout placeholder="Напишите сообщение..."
+          @keyup.enter.exact="onSend" />
         <q-btn color="primary" round icon="send" class="q-ml-sm" :disable="!canSend" @click="onSend" />
       </div>
     </div>
@@ -56,6 +45,8 @@
 import BottomNavBar from 'src/components/BottomNavBar.vue'
 import { ref, computed, nextTick, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { api } from 'src/boot/axios'
+import { useQuasar } from 'quasar'
 
 const route = useRoute()
 const router = useRouter()
@@ -95,17 +86,26 @@ interface ChatMessage {
 }
 
 const messages = ref<ChatMessage[]>([
-  { id: 1, text: 'Привет! Я твой виртуальный коуч. Готов помочь с тренировкой 💪', mine: false, stamp: ts() },
-  { id: 2, text: 'Привет! Давай составим план на сегодня.', mine: true, stamp: ts() },
-  { id: 3, text: 'Отлично. Какая цель тренировки: сила, выносливость или жиросжигание?', mine: false, stamp: ts() },
+  { id: 1, text: 'Я твой тренер. Как могу помочь?', mine: false, stamp: ts() },
 ])
 
 const draft = ref('')
 const typing = ref(false)
 const scrollAreaRef = ref()
+const $q = useQuasar()
+const userIdRef = ref<number | null>(null)
+
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
 
 const userAvatar = '/public/icons/ProIcon.png'.replace('/public', '') // served from public root
 const botAvatar = '/logo.jpg'
+const isDev = Boolean(import.meta.env.DEV)
 
 const canSend = computed(() => draft.value.trim().length > 0)
 
@@ -116,8 +116,16 @@ function ts() {
 function scrollToBottom() {
   void nextTick(() => {
     try {
-      scrollAreaRef.value?.setScrollPosition('vertical', 10 ** 9, 300)
-    } catch {
+      const el = scrollAreaRef.value
+      if (!el) return
+      // plain div: scrollTop -> scrollHeight
+      if (el instanceof HTMLElement) {
+        el.scrollTop = el.scrollHeight
+      } else if (typeof el.setScrollPosition === 'function') {
+        // fallback for q-scroll-area
+        el.setScrollPosition('vertical', 10 ** 9, 300)
+      }
+    } catch (e) {
       // ignore
     }
   })
@@ -129,8 +137,35 @@ async function onSend() {
   draft.value = ''
   const id = (messages.value.at(-1)?.id || 0) + 1
   messages.value.push({ id, text, mine: true, stamp: ts() })
+  console.log('messages after push', JSON.parse(JSON.stringify(messages.value)))
   scrollToBottom()
-  await simulateBotReply()
+
+  // send to agent backend via dev-server proxy (/api/agent -> localhost:8080)
+  typing.value = true
+  try {
+    // determine chat_id and exercise_id from route (if provided)
+    const chatId = String(route.query.chat_id || route.query.chatId || uuidv4())
+    const exerciseId = Number(route.query.exercise_id || route.query.exerciseId || route.query.id || route.params.id || 0)
+
+    const payload = {
+      message: text,
+      user_token: (localStorage.getItem('access_token') || ''),
+      user_id: Number(userIdRef.value || 0),
+      exercise_id: exerciseId,
+      chat_id: chatId,
+    }
+    console.log('POST -> /agent/exercise (proxied to /api/agent/exercise)', payload)
+    const resp = await api.post('/agent/exercise', payload)
+    const replyText = typeof resp.data === 'string' ? resp.data : (resp.data?.reply || JSON.stringify(resp.data))
+    const rid = (messages.value.at(-1)?.id || 0) + 1
+    messages.value.push({ id: rid, text: replyText, mine: false, stamp: ts() })
+    scrollToBottom()
+  } catch (err) {
+    console.error('Agent request failed', err)
+    $q.notify({ type: 'negative', message: 'Ошибка связи с виртуальным коучем' })
+  } finally {
+    typing.value = false
+  }
 }
 
 function sleep(ms: number) {
@@ -155,6 +190,16 @@ async function simulateBotReply() {
 
 onMounted(() => {
   scrollToBottom()
+    // fetch current user id for agent requests
+    ; (async () => {
+      try {
+        const resp = await api.get('/user/')
+        userIdRef.value = Number(resp.data?.id || 0)
+      } catch (e) {
+        console.warn('Failed to fetch user id on VirtualCoach mount', e)
+        userIdRef.value = null
+      }
+    })()
 })
 </script>
 
@@ -164,7 +209,15 @@ onMounted(() => {
 }
 
 .chat-area {
-  min-height: 0; /* allows scroll-area to size correctly in column layout */
+  min-height: 0;
+  /* allows scroll-area to size correctly in column layout */
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.chat-area .fit {
+  flex: 1 1 auto;
 }
 
 .composer {
@@ -179,6 +232,7 @@ onMounted(() => {
   align-items: center;
   gap: 4px;
 }
+
 .dots span {
   width: 6px;
   height: 6px;
@@ -187,11 +241,65 @@ onMounted(() => {
   display: inline-block;
   animation: bounce 1.4s infinite ease-in-out both;
 }
-.dots span:nth-child(1) { animation-delay: -0.32s; }
-.dots span:nth-child(2) { animation-delay: -0.16s; }
+
+.dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+
+  40% {
+    transform: scale(1);
+  }
+}
+
+/* Chat bubble styles (simple, always-visible) */
+.chat-bubble {
+  display: flex;
+  margin: 8px 0;
+}
+
+.chat-bubble.mine {
+  justify-content: flex-end;
+}
+
+.chat-bubble .bubble-inner {
+  max-width: 78%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.chat-bubble.mine .bubble-inner {
+  background: #0f62fe;
+  /* primary */
+  color: white;
+}
+
+.bubble-text {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble-meta {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-top: 6px;
+  text-align: right;
+}
+
+.chat-bubble.mine .bubble-meta {
+  color: rgba(255, 255, 255, 0.75);
 }
 </style>

@@ -21,17 +21,18 @@
               <div class="col">
                 <div class="text-h5 text-weight-bold"
                   style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ planned?.training?.title ||
-                  'Тренировка' }}</div>
+                    'Тренировка' }}</div>
                 <div class="text-caption q-mt-xs">Дни недели: {{ (planned.weekdays || []).join(', ') || '—' }}</div>
               </div>
               <div class="col-auto">
-                  <div class="row items-center q-gutter-sm">
-                    <q-btn dense round flat icon="play_arrow" color="positive" @click="startPlannedTraining" label="" aria-label="Начать" />
-                    <q-btn dense round flat icon="edit" color="primary" @click="openEdit" label=""
-                      aria-label="Редактировать" />
-                    <q-btn dense round flat icon="delete" color="negative" @click="confirmDelete" label=""
-                      aria-label="Удалить" />
-                  </div>
+                <div class="row items-center q-gutter-sm">
+                  <q-btn dense round flat icon="play_arrow" color="positive" @click="startPlannedTraining" label=""
+                    aria-label="Начать" />
+                  <q-btn dense round flat icon="edit" color="primary" @click="openEdit" label=""
+                    aria-label="Редактировать" />
+                  <q-btn dense round flat icon="delete" color="negative" @click="confirmDelete" label=""
+                    aria-label="Удалить" />
+                </div>
               </div>
             </div>
           </q-card>
