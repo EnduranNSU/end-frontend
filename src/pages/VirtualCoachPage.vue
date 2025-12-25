@@ -12,9 +12,15 @@
         <div class="q-pa-md q-gutter-md">
           <!-- Simple chat bubbles (always visible) -->
           <div v-for="m in messages" :key="m.id" class="chat-bubble" :class="{ mine: m.mine }">
+            <div v-if="!m.mine" class="avatar-wrap">
+              <img class="avatar" :src="botAvatar" alt="bot" />
+            </div>
             <div class="bubble-inner">
-              <div class="bubble-text">{{ m.text }}</div>
+              <div class="bubble-text" v-html="formatMessageHtml(m.text)"></div>
               <div class="bubble-meta">{{ m.stamp }}</div>
+            </div>
+            <div v-if="m.mine" class="avatar-wrap user">
+              <img class="avatar" :src="userAvatar" alt="you" />
             </div>
           </div>
 
@@ -111,6 +117,63 @@ const canSend = computed(() => draft.value.trim().length > 0)
 
 function ts() {
   return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+}
+
+function escapeHtml(s: string) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function formatMessageHtml(text: string) {
+  if (!text) return ''
+  const src = String(text).replace(/\r\n/g, '\n')
+  const lines = src.split('\n')
+  const out: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    if (line.startsWith('### ')) {
+      const content = escapeHtml(line.slice(4).trim()).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      out.push(`<h5>${content}</h5>`)
+      continue
+    }
+    if (line.trim() === '---') {
+      out.push('<hr/>')
+      continue
+    }
+    if (line.startsWith('- ')) {
+      // collect list
+      const items: string[] = []
+      let j = i
+      for (; j < lines.length; j++) {
+        if (!lines[j].startsWith('- ')) break
+        items.push(`<li>${escapeHtml(lines[j].slice(2).trim())}</li>`)
+      }
+      const itemsHtml = items.map((it) => it.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'))
+      out.push(`<ul>${itemsHtml.join('')}</ul>`)
+      i = j - 1
+      continue
+    }
+    // paragraph: collect until blank or special
+    let j = i
+    const para: string[] = []
+    for (; j < lines.length; j++) {
+      const L = lines[j]
+      if (L.trim() === '') break
+      if (L.startsWith('### ') || L.startsWith('- ') || L.trim() === '---') break
+      para.push(escapeHtml(L))
+    }
+    if (para.length) {
+      // join paragraph lines and convert bold markers
+      const paragraph = para.join('<br/>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      out.push(`<p>${paragraph}</p>`)
+    }
+    i = j
+  }
+  return out.join('')
 }
 
 function scrollToBottom() {
@@ -224,6 +287,68 @@ onMounted(() => {
   position: sticky;
   bottom: 0;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.chat-bubble .avatar-wrap {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 8px;
+}
+
+.chat-bubble .avatar-wrap.user {
+  padding-left: 8px;
+}
+
+.chat-bubble .avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.bubble-inner p {
+  margin: 6px 0;
+  line-height: 1.4;
+}
+
+.bubble-inner h3 {
+  margin: 4px 0 8px 0;
+  font-size: 10px;
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+.bubble-inner ul {
+  margin: 6px 0 6px 18px;
+}
+
+.bubble-inner li {
+  margin: 4px 0;
+}
+
+/* Responsive adjustments for small screens */
+@media (max-width: 480px) {
+  .chat-bubble .bubble-inner {
+    max-width: 92%;
+    padding: 8px 10px;
+  }
+
+  .bubble-inner h3 {
+    font-size: 10px;
+    margin-bottom: 6px;
+  }
+
+  .bubble-inner p {
+    font-size: 13px;
+  }
+
+  .bubble-inner ul {
+    font-size: 13px;
+  }
+
+  .bubble-meta {
+    font-size: 10px;
+  }
 }
 
 /* Typing indicator */
