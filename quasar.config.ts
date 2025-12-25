@@ -89,6 +89,9 @@ export default defineConfig(ctx => {
               lintCommand: 'eslint -c ./eslint.config.js "./src*/**/*.{ts,js,mjs,cjs,vue}"',
               useFlatConfig: true,
             },
+            // Disable the plugin overlay UI so errors don't show as a full-screen overlay
+            // The plugin accepts `overlay: false` to turn off its overlay behavior.
+            overlay: false,
           },
           { server: false },
         ],
@@ -99,6 +102,11 @@ export default defineConfig(ctx => {
     devServer: {
       // https: true,
       open: true, // opens browser window automatically
+      // Disable Vite HMR overlay (red error overlay in the browser)
+      // This prevents build/runtime errors from showing as a full-screen overlay.
+      hmr: {
+        overlay: false,
+      },
       // Прокси для запросов к API в режиме разработки, чтобы избежать CORS.
       // Перенаправляем все запросы, начинающиеся с /api, на бэкенд.
       proxy: (() => {

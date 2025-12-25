@@ -218,10 +218,13 @@ async function onSend() {
       chat_id: chatId,
     }
 
-    // add exercise_id only when in exercise mode
-    if (mode !== 'tell_about') basePayload.exercise_id = exerciseId
+    // add exercise_id only when not in tell_about or prepare_trainning modes
+    if (mode !== 'tell_about' && mode !== 'prepare_trainning') basePayload.exercise_id = exerciseId
 
-    const endpoint = mode === 'tell_about' ? '/agent/tell_about' : '/agent/exercise'
+    let endpoint = '/agent/exercise'
+    if (mode === 'tell_about') endpoint = '/agent/tell_about'
+    else if (mode === 'prepare_trainning') endpoint = '/agent/prepare_trainning'
+
     console.log(`POST -> ${endpoint} (proxied to /api${endpoint})`, basePayload)
     const resp = await api.post(endpoint, basePayload)
     const replyText = typeof resp.data === 'string' ? resp.data : (resp.data?.reply || JSON.stringify(resp.data))

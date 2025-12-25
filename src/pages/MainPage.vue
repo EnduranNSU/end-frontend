@@ -34,7 +34,10 @@
       </div>
       <!-- New training button under My workouts -->
       <div class="q-mt-md" style="display:flex; justify-content:center;">
-        <q-btn unelevated color="primary" icon="add" label="Новая тренировка" @click="openCreatePlannedDialog" />
+        <div style="display:flex; gap:8px; align-items:center;">
+          <q-btn unelevated color="primary" icon="add" label="Новая тренировка" @click="openCreatePlannedDialog" />
+          <q-btn unelevated color="accent" icon="bolt" label="Создать тренировку с ИИ" @click="openAiTraining" />
+        </div>
       </div>
     </section>
 
@@ -366,6 +369,19 @@ function onHeroClick() {
 
 function openCreatePlannedDialog() {
   createDialog.value = true
+}
+
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
+function openAiTraining() {
+  const chatId = uuidv4()
+  void router.push({ path: '/coach', query: { mode: 'prepare_trainning', chat_id: chatId } })
 }
 </script>
 
