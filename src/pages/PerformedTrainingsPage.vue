@@ -12,7 +12,7 @@
                     @click="openPerformed(it.id)">
                     <div class="card-body">
                         <div class="card-title">{{ it.training?.title || 'Тренировка' }}</div>
-                        <div class="card-dots">{{ it.date || '' }}</div>
+                        <div class="card-dots">{{ it.date ? new Date(it.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '' }}</div>
                     </div>
                 </q-card>
 

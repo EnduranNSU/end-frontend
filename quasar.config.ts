@@ -89,9 +89,8 @@ export default defineConfig(ctx => {
               lintCommand: 'eslint -c ./eslint.config.js "./src*/**/*.{ts,js,mjs,cjs,vue}"',
               useFlatConfig: true,
             },
-            // Disable the plugin overlay UI so errors don't show as a full-screen overlay
-            // The plugin accepts `overlay: false` to turn off its overlay behavior.
             overlay: false,
+            enableBuild: false,
           },
           { server: false },
         ],
@@ -110,32 +109,24 @@ export default defineConfig(ctx => {
       // Прокси для запросов к API в режиме разработки, чтобы избежать CORS.
       // Перенаправляем все запросы, начинающиеся с /api, на бэкенд.
       proxy: (() => {
-        // Нормализуем цель прокси: убираем возможный суффикс `/api`,
-        // чтобы не получить в итоговом URL двойной `/api/api/...`.
-        const raw = process.env.VITE_API_BASE || 'http://localhost:8000'
-        const normalized = String(raw).replace(/\/api\/?$/, '')
-        // Логируем для удобства при старте dev-server, чтобы видеть реальный target
-        // (это поможет отладить случаи, когда в окружении оказался другой адрес).
-
-        console.log('[dev] proxy /api ->', normalized)
+        // Всё через gateway на :8001 (как написано в FRONTEND_GUIDE.md)
+        const gateway = process.env.VITE_GATEWAY_URL || 'http://localhost:8001'
+        console.log('[dev] proxy /api ->', gateway)
 
         return {
-          // Specific proxy for the agent service (runs on port 8080).
-          // This ensures calls to `/api/agent/...` are forwarded to the agent
-          // without CORS issues during development.
-          '/api/agent': {
-            target: 'http://localhost:8080',
+          // WebSocket для CV live coach — должен идти первым с ws:true
+          '/api/cv/ws': {
+            target: gateway,
             changeOrigin: true,
             secure: false,
-            // Remove the leading `/api` before forwarding so the agent
-            // receives paths like `/agent/exercise` (agent expects no /api prefix).
+            ws: true,
             rewrite: (path: string) => path.replace(/^\/api/, ''),
           },
+          // Всё остальное тоже через gateway
           '/api': {
-            target: normalized,
+            target: gateway,
             changeOrigin: true,
             secure: false,
-            // Убираем префикс /api из пути перед отправкой на target
             rewrite: (path: string) => path.replace(/^\/api/, ''),
           },
         }

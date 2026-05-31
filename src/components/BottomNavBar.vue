@@ -1,36 +1,13 @@
 <template>
-  <nav class="bottom-nav">
-    <!-- <button
-      class="nav-item"
-      :class="{ active: model === 'chat' }"
-      @click="select('chat')"
+  <nav class="ai-bottom-nav">
+    <button
+      v-for="item in items" :key="item.key"
+      class="ai-nav-item"
+      :class="{ active: model === item.key, center: item.key === 'add' }"
+      @click="select(item.key)"
     >
-      <q-icon name="chat_bubble_outline" :size="iconSize('chat')" />
-      <span>Чат-бот</span>
-    </button> -->
-
-    <!-- <button
-      class="nav-item"
-      :class="{ active: model === 'history' }"
-      @click="select('history')"
-    >
-      <q-icon name="history" :size="iconSize('history')" />
-      <span>История</span>
-    </button> -->
-
-    <button class="nav-item center" :class="{ active: model === 'add' }" @click="select('add')">
-      <q-icon name="add" :size="iconSize('add')" />
-      <span>Тренировка</span>
-    </button>
-
-    <button class="nav-item" :class="{ active: model === 'exercises' }" @click="select('exercises')">
-      <q-icon name="fitness_center" :size="iconSize('exercises')" />
-      <span>Упражнения</span>
-    </button>
-
-    <button class="nav-item" :class="{ active: model === 'profile' }" @click="select('profile')">
-      <q-icon name="person" :size="iconSize('profile')" />
-      <span>Профиль</span>
+      <q-icon :name="item.icon" :size="item.key === 'add' ? '30px' : '24px'" />
+      <span class="ai-nav-label">{{ item.label }}</span>
     </button>
   </nav>
 </template>
@@ -46,79 +23,62 @@ const emit = defineEmits<{
 
 const model = ref(props.modelValue ?? 'add')
 
-watch(
-  () => props.modelValue,
-  (v) => {
-    if (typeof v === 'string') model.value = v
-  }
-)
+watch(() => props.modelValue, (v) => { if (v) model.value = v })
+
+const items = [
+  { key: 'add',       icon: 'fitness_center', label: 'Тренировка' },
+  { key: 'exercises', icon: 'menu_book',       label: 'Упражнения' },
+  { key: 'history',   icon: 'calendar_month',  label: 'История'    },
+  { key: 'profile',   icon: 'person',          label: 'Профиль'    },
+]
 
 function select(key: string) {
   model.value = key
   emit('update:modelValue', key)
   emit('navigate', key)
 }
-
-function iconSize(key: string) {
-  return key === 'add' ? '36px' : '28px'
-}
 </script>
 
 <style scoped>
-.bottom-nav {
+.ai-bottom-nav {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 72px;
-  background: #3f3b3b;
-  /* тёмно-серый как на макете */
+  left: 0; right: 0; bottom: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  height: 68px;
+  background: #fff8ee;
+  border-top: 3px solid #e8dcc8;
   display: grid;
-  /* layout for three visible items: center the three icons */
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   align-items: stretch;
-  justify-items: stretch;
   padding-bottom: env(safe-area-inset-bottom);
   z-index: 1000;
+  box-shadow: 0 -4px 0 0 #bdaea0;
 }
 
-.nav-item {
-  display: grid;
-  grid-template-rows: 1fr auto;
-  /* иконка занимает всё доступное, текст прижат вниз */
+.ai-nav-item {
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-items: center;
-  height: 100%;
-  padding: 6px 0 8px;
+  justify-content: center;
+  gap: 2px;
   background: transparent;
   border: none;
-  color: #c8c8c8;
-  /* неактивные иконки и подписи */
-  font-size: 12px;
+  padding: 8px 4px 10px;
+  cursor: pointer;
+  color: #bfac97;
+  transition: color 0.15s;
 }
 
-.nav-item>.q-icon {
-  line-height: 1;
-  /* убираем влияние линии на выравнивание */
+.ai-nav-item.active {
+  color: #19c8b9;
 }
 
-.nav-item span {
-  line-height: 1;
-  /* единый базовый уровень подписи */
-  margin-top: 4px;
+.ai-nav-label {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
 }
 
-.nav-item.active {
-  color: #ffffff;
-  /* активная подсветка */
-}
-
-.nav-item.center {
-  /* центр — увеличенный размер иконки задаётся через iconSize */
-}
-
-/* небольшая защита от случайных кликов по краям */
-.nav-item:active {
-  opacity: 0.85;
-}
+.ai-nav-item:active { opacity: 0.75; }
 </style>

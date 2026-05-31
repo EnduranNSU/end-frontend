@@ -1,69 +1,87 @@
 <template>
-  <q-page class="q-pa-md page-with-nav">
-    <div class="content">
+  <q-page class="ai-page">
+    <div v-if="showDraftAdd" class="draft-header">
+      <button class="back-btn" @click="goBackToDraft">← Назад</button>
+      <div class="draft-title">Выберите упражнения</div>
+      <button class="cancel-draft-btn" @click="cancelDraft">Отмена</button>
+    </div>
+    <div v-else class="ai-section-title" style="margin-top:0">Упражнения</div>
 
-      <!-- Filters -->
-      <div class="q-mb-md filters">
-        <div class="grid">
-          <q-input v-model="exerciseQuery" label="Название упражнения" clearable dense filled />
-          <q-select v-model="selectedTag" :options="tagOptions" label="Тег" dense clearable :loading="tagsLoading"
-            emit-value map-options />
-        </div>
-      </div>
+    <!-- Search + AI toggle -->
+    <div class="search-row">
+      <input
+        v-model="exerciseQuery"
+        class="ai-input search-input"
+        :placeholder="ragMode ? 'AI-поиск…' : 'Поиск по названию'"
+        @keyup.enter="ragMode ? doRagSearch() : undefined"
+      />
+      <button v-if="ragMode" class="ai-pill-btn icon-btn" :disabled="ragLoading || !exerciseQuery.trim()" @click="doRagSearch">
+        {{ ragLoading ? '⏳' : '🔍' }}
+      </button>
+    </div>
 
-      <!-- Lists -->
-      <div>
-        <div v-if="loading" class="empty-hint">Загрузка упражнений...</div>
-        <div v-else-if="!exercises.length" class="empty-hint">Список упражнений пуст.</div>
-        <div class="cards-grid">
-          <q-card v-for="ex in filteredExercises" :key="ex.id" class="card exercise-card" clickable
-            @click="openExercise(ex.id)">
-            <div class="card-body column" style="cursor:pointer; position:relative">
-              <div class="card-title">{{ ex.title }}</div>
-              <q-btn v-if="showDraftAdd" dense round flat icon="add" size="sm"
-                style="position:absolute; right:8px; top:8px" @click.stop.prevent="onAddClick(ex.id)" />
-            </div>
-          </q-card>
+    <div class="toggle-row">
+      <label class="toggle-label">
+        <div class="toggle-switch" :class="{ on: ragMode }" @click="ragMode = !ragMode">
+          <div class="toggle-knob" />
         </div>
+        🤖 AI-поиск
+      </label>
+      <div v-if="!ragMode">
+        <select v-model="selectedTag" class="ai-select">
+          <option value="">Все категории</option>
+          <option v-for="t in tags" :key="t" :value="t">{{ tagLabel(t) }}</option>
+        </select>
       </div>
     </div>
 
-    <!-- Bottom nav -->
-    <!-- Add-to-draft dialog -->
+    <!-- Exercise grid -->
+    <div v-if="loading" class="hint-text">Загрузка упражнений…</div>
+    <div v-else-if="!displayedExercises.length" class="hint-text">
+      {{ ragMode && ragResults !== null ? 'Ничего не найдено' : 'Список пуст' }}
+    </div>
+    <div v-else class="ex-grid">
+      <div
+        v-for="ex in displayedExercises" :key="ex.id"
+        class="ai-card ex-card"
+        @click="openExercise(ex.id)"
+      >
+        <div class="ex-title">{{ ex.title }}</div>
+        <div v-if="(ex as any).score" class="ex-score">
+          {{ (((ex as any).score) * 100).toFixed(0) }}% совпадение
+        </div>
+        <button v-if="showDraftAdd" class="add-btn" @click.stop="onAddClick(ex.id)">+</button>
+      </div>
+    </div>
+
+    <!-- Add to draft dialog -->
     <q-dialog v-model="addDialog">
-      <q-card style="min-width:320px; max-width:92vw">
-        <q-card-section>
-          <div class="text-h6">Добавить упражнение</div>
-        </q-card-section>
-        <q-card-section>
-          <div class="q-gutter-md">
-            <div>Упражнение: <strong>{{exercises.find(e => e.id === addExerciseId)?.title}}</strong></div>
-            <div v-for="(s, i) in addSets" :key="i" class="row items-center q-gutter-sm">
-              <div class="col">
-                <q-input v-model.number="s.repetitions" label="Повторы" type="number" dense />
-              </div>
-              <div class="col">
-                <q-input v-model.number="s.weight" label="Вес (кг)" type="number" dense />
-              </div>
-              <div class="col-auto">
-                <q-btn dense flat icon="delete" color="negative" @click.prevent="removeAddSet(i)" />
-              </div>
-            </div>
+      <div class="ai-dialog">
+        <div class="dialog-title">Добавить упражнение</div>
+        <div class="dialog-ex">{{ exercises.find(e => e.id === addExerciseId)?.title }}</div>
 
-            <div class="row q-mt-sm">
-              <q-btn flat label="Добавить сет" @click.prevent="pushAddSet" />
-            </div>
-
-            <div class="row q-justify-end q-mt-md">
-              <q-btn flat label="Отмена" color="grey" v-close-popup @click="() => (addDialog = false)" />
-              <q-btn color="primary" label="Добавить" @click="confirmAddToDraft" />
-            </div>
+        <div v-for="(s, i) in addSets" :key="i" class="set-row">
+          <div class="set-field">
+            <label class="ai-label">Повторы</label>
+            <input v-model.number="s.repetitions" type="number" class="ai-input" />
           </div>
-        </q-card-section>
-      </q-card>
+          <div class="set-field">
+            <label class="ai-label">Вес (кг)</label>
+            <input v-model.number="s.weight" type="number" class="ai-input" />
+          </div>
+          <button class="remove-btn" @click="removeAddSet(i)">✕</button>
+        </div>
+
+        <button class="ai-pill-btn outline small-btn" @click="pushAddSet">+ Сет</button>
+
+        <div class="dialog-actions">
+          <button class="ai-pill-btn outline" @click="addDialog = false">Отмена</button>
+          <button class="ai-pill-btn" @click="confirmAddToDraft">Добавить</button>
+        </div>
+      </div>
     </q-dialog>
 
-    <BottomNavBar v-model="activeTab" @navigate="onNavigate" />
+    <BottomNavBar v-if="!showDraftAdd" v-model="activeTab" @navigate="onNavigate" />
   </q-page>
 </template>
 
@@ -74,15 +92,14 @@ import { computed, ref, watch, onMounted } from 'vue'
 import { api } from 'src/boot/axios'
 import { useRoute, useRouter } from 'vue-router'
 import { useQuasar } from 'quasar'
+import { tagLabel } from 'src/utils/tags'
 
 const route = useRoute()
 const router = useRouter()
-
+const $q = useQuasar()
 const activeTab = ref('exercises')
 
-const $q = useQuasar()
-
-function sync() {
+function syncTab() {
   const p = route.path
   if (p.endsWith('/history')) activeTab.value = 'history'
   else if (p.endsWith('/exercises')) activeTab.value = 'exercises'
@@ -90,95 +107,95 @@ function sync() {
   else if (p.endsWith('/coach')) activeTab.value = 'chat'
   else activeTab.value = 'add'
 }
-
-sync()
-watch(() => route.path, sync)
+syncTab()
+watch(() => route.path, syncTab)
 
 function onNavigate(key: string) {
   const map: Record<string, string> = {
-    chat: '/coach',
-    history: '/history',
-    add: '/mainPage',
-    exercises: '/exercises',
-    profile: '/profile',
+    chat: '/coach', history: '/history', add: '/mainPage',
+    exercises: '/exercises', profile: '/profile',
   }
   const to = map[key] || '/mainPage'
   if (route.path !== to) void router.push(to)
 }
 
-// Trainings removed: page now only shows exercises
-
-// Exercises: fetched from API
-export type ApiExercise = {
-  id: number
-  title: string
-  tags: string[]
-  hrefs?: string[]
-}
+type ApiExercise = { id: number; title: string; tags: string[] }
 
 const exercises = ref<ApiExercise[]>([])
 const exerciseQuery = ref('')
 const loading = ref(false)
-
-// Теги для фильтрации (собираем из ответа /exercise/)
+const ragMode = ref(false)
+const ragLoading = ref(false)
+const ragResults = ref<ApiExercise[] | null>(null)
 const tags = ref<string[]>([])
-const tagsLoading = ref(false)
-const selectedTag = ref<string | null>(null)
-
-const tagOptions = computed(() => tags.value.map((t) => ({ label: t, value: t })))
+const selectedTag = ref('')
 
 async function fetchAllExercises() {
   loading.value = true
-  tagsLoading.value = true
   try {
     const resp = await api.get<ApiExercise[]>('/exercise/')
-    const data = resp.data || []
-    // нормализуем поля: старые компоненты ожидают 'description'
-    exercises.value = data.map((e) => ({ ...e }))
-
-    // Собираем уникальные теги
+    exercises.value = resp.data || []
     const set = new Set<string>()
-    data.forEach((e) => {
-      if (Array.isArray(e.tags)) {
-        e.tags.forEach((t) => set.add(t))
-      }
-    })
-    tags.value = Array.from(set).sort()
-  } catch (err) {
-    console.error('Failed to load exercises', err)
+    exercises.value.forEach((e) => e.tags?.forEach((t) => set.add(t)))
+    tags.value = [...set].sort()
+  } catch {
     $q.notify({ type: 'negative', message: 'Не удалось загрузить упражнения' })
-    exercises.value = []
-    tags.value = []
   } finally {
     loading.value = false
-    tagsLoading.value = false
   }
 }
-
-// следим за выбором тега
-// При выборе тега фильтрация выполняется на клиенте в computed `filteredExercises`
-watch(selectedTag, () => {
-  // noop: filteredExercises реагирует на selectedTag
-})
 
 const filteredExercises = computed(() => {
   const q = exerciseQuery.value.trim().toLowerCase()
   return exercises.value.filter((ex) => {
-    const text = (ex.title || '').toLowerCase()
-    const matchesText = !q || text.includes(q)
-    const matchesTag = !selectedTag.value || (Array.isArray(ex.tags) && ex.tags.includes(selectedTag.value))
-    return matchesText && matchesTag
+    const matchText = !q || ex.title.toLowerCase().includes(q)
+    const matchTag = !selectedTag.value || ex.tags?.includes(selectedTag.value)
+    return matchText && matchTag
   })
 })
 
-// draft store: if a draft is active, allow adding exercises to it
+const displayedExercises = computed(() =>
+  ragMode.value && ragResults.value !== null ? ragResults.value : filteredExercises.value
+)
+
+async function doRagSearch() {
+  const q = exerciseQuery.value.trim()
+  if (!q) return
+  ragLoading.value = true
+  try {
+    const resp = await api.post('/search/exercise/', { rag_name: 'exercises', query: q, limit: 10, tags: [] })
+    const hits: any[] = resp.data?.results ?? []
+    const bestScore = new Map<number, number>()
+    for (const h of hits) {
+      const exerciseTitle: string = h.payload?.tags?.[0]
+      if (!exerciseTitle) continue
+      const ex = exercises.value.find((e) => e.title === exerciseTitle)
+      if (!ex) continue
+      if ((bestScore.get(ex.id) ?? -1) < h.score) bestScore.set(ex.id, h.score)
+    }
+    ragResults.value = [...bestScore.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([id, score]) => {
+        const ex = exercises.value.find((e) => e.id === id)
+        return ex ? { ...ex, score } : null
+      })
+      .filter(Boolean) as any[]
+  } catch {
+    $q.notify({ type: 'negative', message: 'Ошибка AI-поиска' })
+    ragResults.value = []
+  } finally {
+    ragLoading.value = false
+  }
+}
+
+watch(ragMode, (v) => { if (!v) ragResults.value = null })
+
 const draftStore = usePlannedDraftStore()
 const showDraftAdd = computed(() => Boolean(draftStore.draft) || route.query.fromDraft === '1')
 
-// dialog when adding an exercise from the exercises list
 const addDialog = ref(false)
 const addExerciseId = ref<number | null>(null)
-const addSets = ref<Array<{ repetitions: number; weight: number }>>([])
+const addSets = ref<{ repetitions: number; weight: number }[]>([])
 
 function onAddClick(id: number) {
   addExerciseId.value = id
@@ -186,84 +203,244 @@ function onAddClick(id: number) {
   addDialog.value = true
 }
 
-function pushAddSet() {
-  addSets.value.push({ repetitions: 8, weight: 0 })
-}
-
-function removeAddSet(idx: number) {
-  addSets.value.splice(idx, 1)
-}
+function pushAddSet() { addSets.value.push({ repetitions: 8, weight: 0 }) }
+function removeAddSet(i: number) { addSets.value.splice(i, 1) }
 
 async function confirmAddToDraft() {
   if (!addExerciseId.value) return
   draftStore.startDraft(draftStore.draft ?? { weekdays: [], training: { title: '', perfomable_exercises: [] } })
-  const sets = addSets.value.map((s) => ({ weight: Number(s.weight), repetitions: Number(s.repetitions), rest_duration: 60 }))
-  draftStore.addExercise(Number(addExerciseId.value), sets)
-  // navigate back to main page and open the create dialog
+  draftStore.addExercise(addExerciseId.value, addSets.value.map((s) => ({
+    weight: Number(s.weight), repetitions: Number(s.repetitions), rest_duration: 60,
+  })))
   await router.push({ path: '/mainPage', query: { openCreate: '1' } })
 }
 
-onMounted(() => {
-  // Загружаем все упражнения и собираем теги из ответа
-  void fetchAllExercises()
-})
-
-function openExercise(id: number | string) {
-  // Переход в детальную страницу упражнения, передаём id в query
+function openExercise(id: number) {
   void router.push({ path: '/exercisePage', query: { id: String(id) } })
 }
+
+function goBackToDraft() {
+  void router.push({ path: '/mainPage', query: { openCreate: '1' } })
+}
+
+function cancelDraft() {
+  draftStore.clearDraft()
+  void router.push('/mainPage')
+}
+
+onMounted(() => { void fetchAllExercises() })
 </script>
 
 <style scoped>
-.page-with-nav {
-  padding-bottom: 88px;
+.search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-.content {
-  max-width: 980px;
-  margin: 0 auto;
+.search-input { flex: 1; }
+
+.icon-btn { padding: 10px 14px; flex-shrink: 0; }
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.filters .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ai-text);
+  cursor: pointer;
+  user-select: none;
 }
 
-.cards-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+.toggle-switch {
+  width: 44px;
+  height: 24px;
+  border-radius: 50px;
+  background: #e8dcc8;
+  position: relative;
+  transition: background 0.2s;
+  cursor: pointer;
 }
 
-.card {
+.toggle-switch.on { background: var(--ai-teal); }
+
+.toggle-knob {
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  transition: transform 0.2s;
+}
+
+.toggle-switch.on .toggle-knob { transform: translateX(20px); }
+
+.ai-select {
+  padding: 8px 14px;
   border-radius: 14px;
-  overflow: hidden;
+  border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8);
+  color: var(--ai-text);
+  font-size: 13px;
+  font-family: 'Nunito', sans-serif;
+  outline: none;
 }
 
-.card-body {
-  padding: 10px 12px 14px;
+.draft-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #e8dcc8;
 }
 
-.card-title {
+.back-btn {
+  background: none;
+  border: none;
+  color: var(--ai-teal);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.draft-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--ai-text);
+  flex: 1;
+}
+
+.cancel-draft-btn {
+  background: none;
+  border: none;
+  color: #e05c5c;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.hint-text { color: var(--ai-shadow); font-size: 14px; text-align: center; padding: 24px; }
+
+.ex-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.ex-card {
+  cursor: pointer;
+  position: relative;
+  padding: 14px;
+  transition: transform 0.1s;
+}
+
+.ex-card:active { transform: scale(0.97); }
+
+.ex-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ai-text);
+  line-height: 1.3;
+}
+
+.ex-score {
+  font-size: 11px;
+  color: var(--ai-teal);
+  margin-top: 4px;
   font-weight: 600;
 }
 
-.card-subtitle {
-  font-size: 12px;
-  color: #666;
-}
-
-.exercise-card .chips {
+.add-btn {
+  position: absolute;
+  top: 8px; right: 8px;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ai-teal);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
 }
 
-.empty-hint {
-  opacity: 0.7;
-  text-align: center;
-  margin: 12px 0;
+/* Dialog */
+.ai-dialog {
+  background: var(--ai-bg);
+  border-radius: 24px;
+  padding: 24px 20px;
+  width: min(380px, 92vw);
+  box-shadow: 0 8px 0 0 var(--ai-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dialog-title { font-size: 20px; font-weight: 800; color: var(--ai-text); }
+.dialog-ex { font-size: 15px; font-weight: 700; color: var(--ai-teal); }
+
+.set-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.set-field { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+
+.ai-label { font-size: 12px; font-weight: 700; color: var(--ai-text); }
+
+.ai-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8);
+  color: var(--ai-text);
+  font-size: 14px;
+  font-family: 'Nunito', sans-serif;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ai-input:focus { border-color: var(--ai-teal); }
+
+.remove-btn {
+  background: none;
+  border: none;
+  color: #e05c5c;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 8px 4px;
+  align-self: flex-end;
+}
+
+.small-btn { padding: 8px 16px; font-size: 13px; align-self: flex-start; }
+
+.dialog-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
 }
 </style>

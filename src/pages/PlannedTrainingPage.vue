@@ -1,131 +1,101 @@
 <template>
-  <q-page class="q-pa-md page-with-nav">
-    <div class="row items-center q-mb-md">
-      <q-btn dense flat round icon="arrow_back" @click="goBack" />
-      <div class="text-subtitle2 text-weight-medium q-ml-sm">Запланированная тренировка</div>
+  <q-page class="ai-page">
+    <div class="page-header">
+      <button class="back-btn" @click="router.back()">← Назад</button>
+      <div class="page-title">Тренировка</div>
     </div>
 
-    <q-card flat bordered class="q-pa-md rounded-card" v-if="loading">
-      <div class="text-center">Загрузка тренировки...</div>
-    </q-card>
+    <div v-if="loading" class="hint-text">Загрузка…</div>
+    <div v-else-if="!planned" class="hint-text">Тренировка не найдена</div>
 
-    <q-card flat bordered class="q-pa-md rounded-card" v-else-if="!planned">
-      <div class="text-center">Тренировка не найдена.</div>
-    </q-card>
-
-    <div v-else>
-      <div class="row q-mb-sm justify-center">
-        <div class="col-12 col-md-8">
-          <q-card flat bordered class="q-pa-md rounded-card">
-            <div class="row items-center q-gutter-sm">
-              <div class="col">
-                <div class="text-h5 text-weight-bold"
-                  style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis">{{ planned?.training?.title ||
-                    'Тренировка' }}</div>
-                <div class="text-caption q-mt-xs">Дни недели: {{ (planned.weekdays || []).join(', ') || '—' }}</div>
-              </div>
-              <div class="col-auto">
-                <div class="row items-center q-gutter-sm">
-                  <q-btn dense round flat icon="play_arrow" color="positive" @click="startPlannedTraining" label=""
-                    aria-label="Начать" />
-                  <q-btn dense round flat icon="edit" color="primary" @click="openEdit" label=""
-                    aria-label="Редактировать" />
-                  <q-btn dense round flat icon="delete" color="negative" @click="confirmDelete" label=""
-                    aria-label="Удалить" />
-                </div>
-              </div>
-            </div>
-          </q-card>
+    <template v-else>
+      <!-- Title card -->
+      <div class="ai-card training-header">
+        <div class="training-name">{{ planned.training?.title || 'Тренировка' }}</div>
+        <div class="training-days">{{ (planned.weekdays || []).map(dayLabel).join(' · ') || '—' }}</div>
+        <div class="header-actions">
+          <button class="ai-pill-btn" @click="startPlannedTraining">Начать</button>
+          <button class="ai-pill-btn outline" @click="openEdit">✏️</button>
+          <button class="ai-pill-btn outline danger" @click="confirmDelete">🗑</button>
         </div>
       </div>
 
-      <div v-for="(pe, idx) in planned.training?.perfomable_exercises || []" :key="idx" class="q-mb-sm">
-        <q-card flat bordered class="q-pa-sm">
-          <div class="row items-center">
-            <div class="col">
-              <div class="text-weight-medium">{{ pe.exercise?.title || 'Упражнение' }}</div>
-              <div class="text-caption text-grey-7">Тегов: {{ (pe.exercise?.tags || []).join(', ') }}
-              </div>
-            </div>
-            <div class="col-auto">
-              <div class="text-caption">Сетов: {{ (pe.sets || []).length }}</div>
-            </div>
-          </div>
-        </q-card>
+      <!-- Exercises -->
+      <div class="ai-section-title">Упражнения</div>
+      <div
+        v-for="(pe, idx) in planned.training?.perfomable_exercises || []"
+        :key="idx"
+        class="ai-card ex-item"
+      >
+        <div class="ex-name">{{ pe.exercise?.title || 'Упражнение' }}</div>
+        <div class="ex-tags">{{ (pe.exercise?.tags || []).map(tagLabel).join(' · ') }}</div>
+        <div class="ex-sets">{{ (pe.sets || []).length }} сет{{ setSuffix((pe.sets || []).length) }}</div>
       </div>
-    </div>
+    </template>
 
     <!-- Edit dialog -->
     <q-dialog v-model="editDialog">
-      <q-card style="min-width:320px; max-width:92vw">
-        <q-card-section>
-          <div class="text-h6">Редактировать запланированную тренировку</div>
-        </q-card-section>
-        <q-card-section>
-          <q-form @submit.prevent="saveUpdate">
-            <div class="q-gutter-md">
-              <q-input v-model="editModel.training.title" label="Название" dense />
-              <q-select v-model="editModel.weekdays" label="Дни недели" multiple :options="weekdaysOptions" use-chips
-                dense />
+      <div class="ai-dialog">
+        <div class="dialog-title">Редактировать</div>
 
-              <div class="q-mt-md">
-                <div class="text-subtitle2">Упражнения</div>
-                <div v-for="(pe, pIdx) in editModel.training.perfomable_exercises || []" :key="pIdx"
-                  class="q-mt-sm q-pa-sm" style="border:1px solid var(--q-color-grey-3); border-radius:6px">
-                  <div class="row items-center q-gutter-sm">
-                    <div class="col">
-                      <q-select v-model.number="pe.exercise_id" :options="exerciseOptions" label="Упражнение" emit-value
-                        map-options dense />
-                    </div>
-                    <div class="col-auto">
-                      <q-btn dense flat icon="delete" color="negative"
-                        @click.prevent="removePerfomableExercise(pIdx)" />
-                    </div>
-                  </div>
+        <label class="ai-label">Название</label>
+        <input v-model="editModel.training.title" class="ai-input" />
 
-                  <div v-for="(s, sIdx) in pe.sets || []" :key="sIdx" class="row items-center q-gutter-sm q-mt-sm">
-                    <div class="col-4">
-                      <q-input v-model.number="s.repetitions" label="reps" type="number" dense />
-                    </div>
-                    <div class="col-4">
-                      <q-input v-model.number="s.weight" label="kg" type="number" dense />
-                    </div>
-                    <div class="col-auto">
-                      <q-btn dense flat icon="delete" color="negative" @click.prevent="removeSetFromPerf(pIdx, sIdx)" />
-                    </div>
-                  </div>
+        <label class="ai-label">Дни недели</label>
+        <div class="days-grid">
+          <button
+            v-for="d in weekdaysList" :key="d.val"
+            class="ai-pill-btn outline day-btn"
+            :class="{ active: editModel.weekdays.includes(d.val) }"
+            @click="toggleDay(d.val)"
+          >{{ d.label }}</button>
+        </div>
 
-                  <div class="row q-mt-sm">
-                    <q-btn flat label="Добавить сет" @click.prevent="addSetToPerf(pIdx)" />
-                  </div>
-                </div>
-
-                <div class="q-mt-sm">
-                  <q-select v-model.number="newExerciseToAdd" :options="exerciseOptions" label="Добавить упражнение"
-                    dense emit-value map-options />
-                  <div class="q-mt-xs">
-                    <q-btn flat label="Добавить упражнение" @click.prevent="addPerfomableExercise" />
-                  </div>
-                </div>
-              </div>
-
-              <div class="row q-justify-end q-mt-md">
-                <q-btn flat label="Отмена" color="grey" v-close-popup @click="() => (editDialog = false)" />
-                <q-btn color="primary" label="Сохранить" type="submit" />
-              </div>
+        <div class="ai-section-title" style="margin-top:12px">Упражнения</div>
+        <div v-for="(pe, pi) in editModel.training.perfomable_exercises || []" :key="pi" class="edit-ex-block">
+          <div class="edit-ex-header">
+            <select v-model.number="pe.exercise_id" class="ai-select-full">
+              <option v-for="e in exercises" :key="e.id" :value="e.id">{{ e.title }}</option>
+            </select>
+            <button class="remove-btn" @click="removePerfomableExercise(pi)">✕</button>
+          </div>
+          <div v-for="(s, si) in pe.sets || []" :key="si" class="set-row">
+            <div class="set-field">
+              <label class="ai-label">Повт.</label>
+              <input v-model.number="s.repetitions" type="number" class="ai-input-sm" />
             </div>
-          </q-form>
-        </q-card-section>
-      </q-card>
+            <div class="set-field">
+              <label class="ai-label">Кг</label>
+              <input v-model.number="s.weight" type="number" class="ai-input-sm" />
+            </div>
+            <button class="remove-btn" @click="removeSetFromPerf(pi, si)">✕</button>
+          </div>
+          <button class="ai-pill-btn outline small-btn" @click="addSetToPerf(pi)">+ Сет</button>
+        </div>
+
+        <div class="add-ex-row">
+          <select v-model.number="newExerciseToAdd" class="ai-select-full">
+            <option :value="null">Выбрать упражнение…</option>
+            <option v-for="e in exercises" :key="e.id" :value="e.id">{{ e.title }}</option>
+          </select>
+          <button class="ai-pill-btn outline small-btn" @click="addPerfomableExercise">+ Добавить</button>
+        </div>
+
+        <div class="dialog-actions">
+          <button class="ai-pill-btn outline" @click="editDialog = false">Отмена</button>
+          <button class="ai-pill-btn" @click="saveUpdate">Сохранить</button>
+        </div>
+      </div>
     </q-dialog>
   </q-page>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
-import { useQuasar, Dialog } from 'quasar'
+import { useQuasar } from 'quasar'
+import { tagLabel, dayLabel } from 'src/utils/tags'
 
 const route = useRoute()
 const router = useRouter()
@@ -135,99 +105,64 @@ const planned = ref<any | null>(null)
 const loading = ref(true)
 const editDialog = ref(false)
 const editModel = ref<any>({ weekdays: [], training: { title: '', perfomable_exercises: [] } })
-
-const weekdaysOptions = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-
-// exercises for select options
 const exercises = ref<{ id: number; title: string }[]>([])
-const exerciseOptions = computed(() => exercises.value.map((e) => ({ label: e.title, value: e.id })))
 const newExerciseToAdd = ref<number | null>(null)
 
-// start planned training as a performed training (today)
-async function startPlannedTraining() {
-  if (!planned.value || !planned.value.training) return
-  try {
-    // transform planned.training -> API expected shape: training.perfomable_exercises with exercise_id and sets
-    const perf = (planned.value.training?.perfomable_exercises || []).map((pe: any) => ({
-      exercise_id: Number(pe.exercise?.id ?? pe.exercise_id ?? 0),
-      sets: (pe.sets || []).map((s: any) => ({ weight: Number(s.weight || 0), repetitions: Number(s.repetitions || 0), rest_duration: Number(s.rest_duration || 0) })),
-    }))
-    const today = new Date().toISOString().split('T')[0]
-    const payload = {
-      date: today,
-      weekdays: planned.value.weekdays || [],
-      training: {
-        title: planned.value.training?.title || '',
-        perfomable_exercises: perf,
-      },
-    }
-    // open an in-progress performed session (do not create server record yet)
-    const plannedId = Number(planned.value.id)
-    if (plannedId) {
-      void router.push({ path: '/performedTraining', query: { plannedId: String(plannedId), mode: 'inprogress' } })
-    } else {
-      $q.notify({ type: 'negative', message: 'Не удалось определить id тренировки' })
-    }
-  } catch (err) {
-    console.error('Failed to start planned training', err)
-    $q.notify({ type: 'negative', message: 'Не удалось начать тренировку' })
-  }
+const weekdaysList = [
+  { val: 'Mon', label: 'Пн' }, { val: 'Tue', label: 'Вт' }, { val: 'Wed', label: 'Ср' },
+  { val: 'Thu', label: 'Чт' }, { val: 'Fri', label: 'Пт' }, { val: 'Sat', label: 'Сб' }, { val: 'Sun', label: 'Вс' },
+]
+
+function setSuffix(n: number) {
+  if (n === 1) return ''
+  if (n >= 2 && n <= 4) return 'а'
+  return 'ов'
 }
 
-async function fetchExercises() {
-  try {
-    const resp = await api.get('/exercise/')
-    const data = resp.data || []
-    exercises.value = (data as any[]).map((x) => ({ id: Number(x.id), title: x.title || String(x.id) }))
-  } catch (err) {
-    console.warn('Failed to load exercises for edit', err)
-    exercises.value = []
-  }
+function toggleDay(d: string) {
+  const i = editModel.value.weekdays.indexOf(d)
+  if (i === -1) editModel.value.weekdays.push(d)
+  else editModel.value.weekdays.splice(i, 1)
 }
 
 async function loadPlanned() {
   loading.value = true
   const id = Number(route.query.id || route.params.id)
-  if (!id) {
-    $q.notify({ type: 'negative', message: 'Не указан id тренировки' })
-    void router.push('/mainPage')
-    return
-  }
-
+  if (!id) { void router.push('/mainPage'); return }
   try {
-    // ensure Authorization header is set from localStorage (in case it's not)
-    try {
-      const token = localStorage.getItem('access_token')
-      if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    } catch (e) {
-      // ignore
-    }
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     const resp = await api.get(`/training/planned/${id}`)
     planned.value = resp.data || null
-  } catch (err) {
-    console.error('Failed to load planned training', err)
-    const status = (err as any)?.response?.status
-    const data = (err as any)?.response?.data
-    $q.notify({ type: 'negative', message: `Не удалось загрузить тренировку${status ? ` (${status})` : ''}` })
-    console.debug('server response:', status, data)
+  } catch {
+    $q.notify({ type: 'negative', message: 'Не удалось загрузить тренировку' })
     planned.value = null
   } finally {
     loading.value = false
   }
 }
 
-function goBack() {
-  void router.back()
+async function fetchExercises() {
+  try {
+    const resp = await api.get('/exercise/')
+    exercises.value = (resp.data || []).map((x: any) => ({ id: Number(x.id), title: x.title || String(x.id) }))
+  } catch { /* */ }
+}
+
+function startPlannedTraining() {
+  const id = Number(planned.value?.id)
+  if (id) void router.push({ path: '/performedTraining', query: { plannedId: String(id), mode: 'inprogress' } })
 }
 
 function openEdit() {
   if (!planned.value) return
-  // copy planned and normalize perfomable_exercises to use exercise_id and sets arrays
   const copy = JSON.parse(JSON.stringify(planned.value))
   if (!copy.training) copy.training = { title: '', perfomable_exercises: [] }
   copy.training.perfomable_exercises = (copy.training.perfomable_exercises || []).map((pe: any) => ({
     exercise_id: pe.exercise?.id ?? pe.exercise_id ?? null,
-    sets: Array.isArray(pe.sets) ? pe.sets.map((s: any) => ({ weight: s.weight ?? 0, repetitions: s.repetitions ?? 0, rest_duration: s.rest_duration ?? 60 })) : [],
+    sets: (pe.sets || []).map((s: any) => ({
+      weight: s.weight ?? 0, repetitions: s.repetitions ?? 0, rest_duration: s.rest_duration ?? 60,
+    })),
   }))
   editModel.value = copy
   editDialog.value = true
@@ -237,100 +172,128 @@ async function saveUpdate() {
   const id = Number(route.query.id || route.params.id)
   if (!id) return
   try {
-    try {
-      const token = localStorage.getItem('access_token')
-      if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    } catch (e) { }
-    // transform perfomable_exercises to expected server shape
-    const perf = (editModel.value.training?.perfomable_exercises || []).map((pe: any) => ({
-      exercise_id: Number(pe.exercise_id),
-      sets: (pe.sets || []).map((s: any) => ({ weight: Number(s.weight), repetitions: Number(s.repetitions), rest_duration: Number(s.rest_duration ?? 60) })),
-    }))
-
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     const payload = {
       weekdays: editModel.value.weekdays || [],
       training: {
         title: editModel.value.training?.title || '',
-        perfomable_exercises: perf,
+        perfomable_exercises: (editModel.value.training?.perfomable_exercises || []).map((pe: any) => ({
+          exercise_id: Number(pe.exercise_id),
+          sets: (pe.sets || []).map((s: any) => ({
+            weight: Number(s.weight), repetitions: Number(s.repetitions), rest_duration: Number(s.rest_duration ?? 60),
+          })),
+        })),
       },
     }
     const resp = await api.post(`/training/planned/update/${id}`, payload)
     planned.value = resp.data || planned.value
-    $q.notify({ type: 'positive', message: 'Тренировка обновлена' })
+    $q.notify({ type: 'positive', message: 'Сохранено' })
     editDialog.value = false
-  } catch (err) {
-    console.error('Failed to update planned training', err)
-    const status = (err as any)?.response?.status
-    const data = (err as any)?.response?.data
-    $q.notify({ type: 'negative', message: `Ошибка при обновлении тренировки${status ? ` (${status})` : ''}` })
-    console.debug('server response:', status, data)
+  } catch {
+    $q.notify({ type: 'negative', message: 'Ошибка при сохранении' })
   }
 }
 
 async function confirmDelete() {
   const id = Number(route.query.id || route.params.id)
   if (!id) return
-  try {
-    await Dialog.create({ title: 'Подтвердите', message: 'Удалить тренировку?', cancel: true })
-  } catch (e) {
-    return
-  }
-
-  try {
-    try {
-      const token = localStorage.getItem('access_token')
-      if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-    } catch (e) { }
-
-    const resp = await api.post(`/training/planned/delete/${id}`)
-    $q.notify({ type: 'positive', message: 'Тренировка удалена' })
-    void router.push('/mainPage')
-  } catch (err) {
-    console.error('Failed to delete planned training', err)
-    const status = (err as any)?.response?.status
-    const data = (err as any)?.response?.data
-    $q.notify({ type: 'negative', message: `Ошибка при удалении тренировки${status ? ` (${status})` : ''}` })
-    console.debug('server response:', status, data)
-  }
+  $q.dialog({ title: 'Удалить?', message: 'Тренировка будет удалена', cancel: true, ok: { label: 'Удалить', color: 'negative' } })
+    .onOk(async () => {
+      try {
+        const token = localStorage.getItem('access_token')
+        if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        await api.post(`/training/planned/delete/${id}`)
+        $q.notify({ type: 'positive', message: 'Удалено' })
+        void router.push('/mainPage')
+      } catch {
+        $q.notify({ type: 'negative', message: 'Ошибка при удалении' })
+      }
+    })
 }
 
-onMounted(() => { void loadPlanned() })
-
-onMounted(() => {
-  void fetchExercises()
-})
-
-function addSetToPerf(peIdx: number) {
-  const pe = editModel.value.training.perfomable_exercises[peIdx]
+function addSetToPerf(pi: number) {
+  const pe = editModel.value.training.perfomable_exercises[pi]
   if (!pe) return
   if (!Array.isArray(pe.sets)) pe.sets = []
   pe.sets.push({ weight: 0, repetitions: 8, rest_duration: 60 })
 }
 
-function removeSetFromPerf(peIdx: number, sIdx: number) {
-  const pe = editModel.value.training.perfomable_exercises[peIdx]
-  if (!pe || !Array.isArray(pe.sets)) return
-  pe.sets.splice(sIdx, 1)
+function removeSetFromPerf(pi: number, si: number) {
+  editModel.value.training.perfomable_exercises[pi]?.sets?.splice(si, 1)
 }
 
 function removePerfomableExercise(idx: number) {
-  if (!Array.isArray(editModel.value.training.perfomable_exercises)) return
   editModel.value.training.perfomable_exercises.splice(idx, 1)
 }
 
 function addPerfomableExercise() {
-  const id = newExerciseToAdd.value
-  if (!id) return
+  if (!newExerciseToAdd.value) return
   if (!Array.isArray(editModel.value.training.perfomable_exercises)) editModel.value.training.perfomable_exercises = []
-  editModel.value.training.perfomable_exercises.push({ exercise_id: Number(id), sets: [{ weight: 0, repetitions: 8, rest_duration: 60 }] })
+  editModel.value.training.perfomable_exercises.push({
+    exercise_id: Number(newExerciseToAdd.value),
+    sets: [{ weight: 0, repetitions: 8, rest_duration: 60 }],
+  })
   newExerciseToAdd.value = null
 }
 
-// (no debug wrappers) confirmDelete is used directly from template
+onMounted(() => { void loadPlanned(); void fetchExercises() })
 </script>
 
 <style scoped>
-.page-with-nav {
-  padding-bottom: 88px
+.page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.back-btn { background: none; border: none; color: var(--ai-teal); font-size: 15px; font-weight: 700; cursor: pointer; padding: 0; }
+.page-title { font-size: 20px; font-weight: 800; color: var(--ai-text); }
+.hint-text { color: var(--ai-shadow); text-align: center; padding: 32px; font-size: 14px; }
+
+.training-header { display: flex; flex-direction: column; gap: 6px; }
+.training-name { font-size: 20px; font-weight: 800; color: var(--ai-text); }
+.training-days { font-size: 13px; color: var(--ai-shadow); font-weight: 600; }
+.header-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+.ex-item { display: flex; flex-direction: column; gap: 3px; padding: 12px 16px; }
+.ex-name { font-size: 15px; font-weight: 700; color: var(--ai-text); }
+.ex-tags { font-size: 12px; color: var(--ai-shadow); }
+.ex-sets { font-size: 13px; color: var(--ai-teal); font-weight: 700; }
+
+.ai-pill-btn.danger { color: #e05c5c; border-color: #e05c5c; }
+
+/* Dialog */
+.ai-dialog {
+  background: var(--ai-bg); border-radius: 24px; padding: 24px 20px;
+  width: min(400px, 92vw); box-shadow: 0 8px 0 0 var(--ai-shadow);
+  display: flex; flex-direction: column; gap: 10px;
+  max-height: 85vh; overflow-y: auto;
 }
+.dialog-title { font-size: 20px; font-weight: 800; color: var(--ai-text); }
+.ai-label { font-size: 12px; font-weight: 700; color: var(--ai-text); }
+.ai-input {
+  width: 100%; padding: 10px 14px; border-radius: 12px; border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8); color: var(--ai-text); font-size: 14px;
+  font-family: 'Nunito', sans-serif; outline: none; box-sizing: border-box;
+}
+.ai-input:focus { border-color: var(--ai-teal); }
+.days-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.day-btn { padding: 6px 10px; font-size: 12px; }
+.edit-ex-block {
+  background: rgba(255,255,255,0.5); border-radius: 12px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.edit-ex-header { display: flex; gap: 8px; align-items: center; }
+.ai-select-full {
+  flex: 1; padding: 8px 12px; border-radius: 10px; border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8); color: var(--ai-text);
+  font-size: 13px; font-family: 'Nunito', sans-serif; outline: none;
+}
+.set-row { display: flex; gap: 8px; align-items: flex-end; }
+.set-field { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ai-input-sm {
+  width: 100%; padding: 7px 10px; border-radius: 10px; border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8); color: var(--ai-text);
+  font-size: 13px; font-family: 'Nunito', sans-serif; outline: none; box-sizing: border-box;
+}
+.remove-btn { background: none; border: none; color: #e05c5c; font-size: 16px; cursor: pointer; padding: 6px 4px; align-self: flex-end; }
+.small-btn { padding: 6px 12px; font-size: 12px; align-self: flex-start; }
+.add-ex-row { display: flex; flex-direction: column; gap: 6px; }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
 </style>

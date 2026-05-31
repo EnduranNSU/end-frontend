@@ -1,124 +1,76 @@
 <template>
-  <q-page class="q-pa-md page-with-nav">
-    <section class="row no-wrap items-center q-gutter-sm q-mb-md">
-      <q-avatar size="64px" color="grey-3" text-color="grey-6">
-        <q-icon name="person" />
-      </q-avatar>
-      <div class="column">
-        <div class="text-subtitle1 text-weight-medium">{{ profile.name }}</div>
-        <div class="text-grey-7">{{ profile.workouts }} тренировок</div>
+  <q-page class="ai-page">
+    <!-- Avatar & name -->
+    <div class="profile-header">
+      <div class="profile-avatar">{{ avatarEmoji }}</div>
+      <div class="profile-info">
+        <div class="profile-name">{{ profile.name }}</div>
+        <div class="profile-meta">{{ profile.workouts }} тренировок</div>
       </div>
-      <q-space />
-      <q-btn color="primary" dense label="Расскажи о себе" @click="tellAbout" />
-    </section>
+      <button class="ai-pill-btn icon-btn" @click="tellAbout">Расскажи о себе</button>
+    </div>
 
-    <section class="q-mt-md">
-      <h5 class="section-title">Информация об аккаунте</h5>
-      <q-card flat bordered class="q-pa-md rounded-card">
-        <q-input v-model="profile.email" type="email" label="Email" dense standout readonly />
-      </q-card>
-    </section>
-
-    <section class="q-mt-lg">
-      <h5 class="section-title">Информация о пользователе</h5>
-      <q-card flat bordered class="q-pa-md rounded-card">
-        <div v-if="measurementsLoading" class="text-center">Загрузка замеров...</div>
-        <div v-else>
-          <div v-for="m in latestMeasurements" :key="m.id ?? m.type" class="row items-center q-gutter-sm q-mb-sm">
-            <div class="col-4">{{ m.type }}</div>
-            <div class="col">
-              <q-select v-if="String(m.type).toLowerCase() === 'пол'" dense v-model.number="m.value"
-                :options="genderOptions" emit-value map-options />
-              <q-input v-else dense v-model.number="m.value" type="number" />
-            </div>
-          </div>
-          <div class="row q-justify-end q-mt-md">
-            <q-btn color="primary" label="Сохранить замеры" :loading="measurementsSaving" @click="saveMeasurements" />
+    <!-- Measurements -->
+    <div class="ai-section-title">Замеры</div>
+    <div class="ai-card">
+      <div v-if="measurementsLoading" class="hint-text">Загрузка…</div>
+      <div v-else>
+        <div v-for="m in latestMeasurements" :key="m.id ?? m.type" class="meas-row">
+          <div class="meas-type">{{ m.type }}</div>
+          <div class="meas-val">
+            <select v-if="String(m.type).toLowerCase() === 'пол'" v-model.number="m.value" class="ai-select-sm">
+              <option :value="0">Муж</option>
+              <option :value="1">Жен</option>
+            </select>
+            <input v-else v-model.number="m.value" type="number" class="ai-input-sm" />
           </div>
         </div>
-      </q-card>
-    </section>
-
-    <section class="q-mt-lg">
-      <h5 class="section-title">Мониторинг</h5>
-      <q-card flat bordered class="q-pa-md rounded-card">
-        <div class="row items-center q-gutter-sm q-mb-md">
-          <div class="col">
-            <div class="measurement-chips row no-wrap q-gutter-sm">
-              <q-chip v-for="opt in measurementTypes" :key="opt" clickable outline :dense="true"
-                :color="opt === selectedMeasurement ? 'primary' : undefined" @click="() => selectedMeasurement = opt">
-                {{ opt }}
-              </q-chip>
-            </div>
-            <div class="q-mt-sm q-gutter-sm">
-              <q-segment v-model="timeRange" dense :options="timeRangeOptions" />
-            </div>
-          </div>
+        <div class="save-row">
+          <button class="ai-pill-btn" :disabled="measurementsSaving" @click="saveMeasurements">
+            {{ measurementsSaving ? 'Сохраняем…' : 'Сохранить' }}
+          </button>
         </div>
+      </div>
+    </div>
 
-        <div v-if="measurementsLoading" class="text-center">Загрузка...</div>
+    <!-- Chart -->
+    <div class="ai-section-title">Прогресс</div>
+    <div class="ai-card">
+      <div class="meas-chips">
+        <button
+          v-for="t in measurementTypes" :key="t"
+          class="ai-pill-btn outline chip-btn"
+          :class="{ active: selectedMeasurement === t }"
+          @click="selectedMeasurement = t"
+        >{{ t }}</button>
+      </div>
 
-        <div v-else-if="!selectedMeasurement">
-          <div class="text-grey-6">Выберите параметр для отображения графика.</div>
+      <div class="time-tabs">
+        <button
+          v-for="r in timeRanges" :key="r.val"
+          class="time-tab"
+          :class="{ active: timeRange === r.val }"
+          @click="timeRange = r.val"
+        >{{ r.label }}</button>
+      </div>
+
+      <div v-if="!selectedMeasurement" class="hint-text">Выберите параметр</div>
+      <div v-else-if="!chartPoints.length" class="hint-text">Нет данных</div>
+      <div v-else class="chart-wrap">
+        <svg :viewBox="`0 0 ${chartW} ${chartH}`" width="100%" :height="chartH" preserveAspectRatio="none">
+          <path :d="linePath" fill="none" stroke="#19c8b9" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle v-for="(p, i) in chartPoints" :key="i" :cx="p.x" :cy="p.y" r="4" fill="#19c8b9"/>
+        </svg>
+        <div class="chart-labels">
+          <span>{{ tickLabels[0] }}</span>
+          <span>{{ tickLabels[1] }}</span>
+          <span>{{ tickLabels[2] }}</span>
         </div>
+      </div>
+    </div>
 
-        <div v-else>
-          <div v-if="chartPoints.length === 0" class="text-grey-6">Нет данных для выбранного параметра.</div>
-          <div v-else class="chart-container">
-            <svg :viewBox="`0 0 ${chartWidth} ${chartHeight}`" width="100%" :height="chartHeight"
-              preserveAspectRatio="none" class="chart-svg">
-              <path :d="linePath" fill="none" stroke="#1976d2" stroke-width="2" stroke-linejoin="round"
-                stroke-linecap="round" />
-              <g v-for="(p, i) in chartPoints" :key="i">
-                <circle :cx="p.x" :cy="p.y" r="3" fill="#1976d2" />
-                <title>{{ p.label }}</title>
-              </g>
-            </svg>
-            <div class="chart-controls q-mt-sm">
-              <div class="chart-axis q-mt-xs">
-                <div class="row items-center">
-                  <div class="col text-left text-caption">{{ tickLabels[0] }}</div>
-                  <div class="col text-center text-caption">{{ tickLabels[1] }}</div>
-                  <div class="col text-right text-caption">{{ tickLabels[2] }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </q-card>
-    </section>
-
-
-
-    <q-dialog v-model="editOpened">
-      <q-card style="min-width: 340px; max-width: 92vw">
-        <q-card-section class="row items-center q-pb-none">
-          <div class="text-subtitle1">Редактировать профиль</div>
-          <q-space />
-          <q-btn flat round dense icon="close" v-close-popup />
-        </q-card-section>
-        <q-separator />
-        <q-card-section>
-          <q-form @submit.prevent="saveEdit">
-            <div class="q-gutter-md">
-              <q-input v-model="draft.name" label="Имя" dense />
-              <q-input v-model="draft.email" type="email" label="Email" dense />
-              <q-input v-model.number="draft.weight" type="number" label="Вес" dense :suffix="'кг'" />
-              <q-input v-model.number="draft.fatPercent" type="number" label="% жировой массы" dense :suffix="'%'" />
-              <q-input v-model.number="draft.calories" type="number" label="Потребление калорий" dense
-                :suffix="'ккал'" />
-              <q-input v-model="draft.bodyparts" type="text" label="Части тела" dense autogrow />
-            </div>
-            <div class="row q-gutter-sm q-mt-md">
-              <q-btn type="submit" color="primary" label="Сохранить" :loading="saving" />
-              <q-btn flat color="grey-7" label="Отмена" v-close-popup />
-            </div>
-          </q-form>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
+    <BottomNavBar v-model="activeTab" @navigate="onNavigate" />
   </q-page>
-  <BottomNavBar v-model="activeTab" @navigate="onNavigate" />
 </template>
 
 <script setup lang="ts">
@@ -129,13 +81,11 @@ import { useQuasar } from 'quasar'
 import { api } from 'src/boot/axios'
 
 const $q = useQuasar()
-
 const route = useRoute()
 const router = useRouter()
-
 const activeTab = ref('profile')
 
-function sync() {
+function syncTab() {
   const p = route.path
   if (p.endsWith('/history')) activeTab.value = 'history'
   else if (p.endsWith('/exercises')) activeTab.value = 'exercises'
@@ -143,184 +93,64 @@ function sync() {
   else if (p.endsWith('/coach')) activeTab.value = 'chat'
   else activeTab.value = 'add'
 }
-
-sync()
-watch(() => route.path, sync)
+syncTab()
+watch(() => route.path, syncTab)
 
 function onNavigate(key: string) {
   const map: Record<string, string> = {
-    chat: '/coach',
-    history: '/history',
-    add: '/mainPage',
-    exercises: '/exercises',
-    profile: '/profile',
+    chat: '/coach', history: '/history', add: '/mainPage',
+    exercises: '/exercises', profile: '/profile',
   }
   const to = map[key] || '/mainPage'
   if (route.path !== to) void router.push(to)
 }
 
-type Profile = {
-  name: string
-  workouts: number
-  email: string
-  weight?: number | null
-  fatPercent?: number | null
-  calories?: number | null
-  bodyparts?: string | null
-}
+const EMOJIS = ['🌿', '🍃', '🌱', '🌻', '🍀', '🌾']
+const avatarEmoji = EMOJIS[Math.floor(Math.random() * EMOJIS.length)]!
 
-const LS_KEY = 'enduran.profile'
-
-function uuidv4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
-}
-
-function tellAbout() {
-  const chatId = uuidv4()
-  void router.push({ path: '/coach', query: { mode: 'tell_about', chat_id: chatId } })
-}
-
-const profile = ref<Profile>({
-  name: 'Пайпик',
-  workouts: 0,
-  email: 'pipik@gmail.com',
-  weight: null,
-  fatPercent: null,
-  calories: null,
-  bodyparts: null,
-})
-
-onMounted(() => {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (raw) Object.assign(profile.value, JSON.parse(raw))
-  } catch (e) {
-    console.warn('Failed to load profile from localStorage', e)
-  }
-
-  // Try to fetch authenticated user info from backend and merge into profile,
-  // then load trainings to update `workouts` dynamically
-  void fetchUser().then(() => void loadTrainings())
-})
+const profile = ref({ name: 'Пользователь', workouts: 0, email: '' })
 
 async function fetchUser() {
   try {
     const token = localStorage.getItem('access_token')
     if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-
     const resp = await api.get('/user/')
-    const data = resp.data || {}
-    if (data.name) profile.value.name = data.name
-    if (data.email) profile.value.email = data.email
-    if (typeof data.workouts === 'number') profile.value.workouts = data.workouts
-    if (data.weight !== undefined) profile.value.weight = data.weight
-    if (data.fatPercent !== undefined) profile.value.fatPercent = data.fatPercent
-    if (data.calories !== undefined) profile.value.calories = data.calories
-    if (data.bodyparts !== undefined) profile.value.bodyparts = data.bodyparts
-
-    // persist fetched profile locally
-    persist()
-  } catch (err: unknown) {
-    // If user is not authenticated, redirect to sign in
-    try {
-      const status = (err as any)?.response?.status
-      if (status === 401) {
-        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
-        void router.push('/signin')
-        return
-      }
-    } catch {
-      // ignore
-    }
-    console.warn('Failed to fetch user profile', err)
+    const d = resp.data || {}
+    if (d.name) profile.value.name = d.name
+    if (d.email) profile.value.email = d.email
+  } catch (err: any) {
+    if (err?.response?.status === 401) { void router.push('/signin') }
   }
 }
 
-function persist() {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(profile.value)) } catch (e) {
-    console.warn('Failed to save profile to localStorage', e)
-  }
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
 }
 
-
-
-const editOpened = ref(false)
-const saving = ref(false)
-const draft = ref<Profile>({ ...profile.value })
-
-function openEdit() {
-  draft.value = { ...profile.value }
-  editOpened.value = true
+function tellAbout() {
+  void router.push({ path: '/coach', query: { mode: 'tell_about', chat_id: uuidv4() } })
 }
 
-function saveEdit() {
-  try {
-    saving.value = true
-    profile.value = { ...profile.value, ...draft.value }
-    persist()
-    editOpened.value = false
-    $q.notify({ type: 'positive', message: 'Сохранено' })
-  } finally {
-    saving.value = false
-  }
-}
-
-// share functionality removed per request (buttons hidden)
-
-// ---------------- measurements handling ----------------
-
-type Measurement = {
-  id?: number
-  type: string
-  value: number | string | null
-  date?: string
-}
+// Measurements
+type Measurement = { id?: number; type: string; value: number | string | null; date?: string }
 
 const measurements = ref<Measurement[]>([])
 const measurementsLoading = ref(false)
 const measurementsSaving = ref(false)
 
-const DEFAULT_MEASUREMENTS = [
-  'Рост',
-  'Вес',
-  'Возраст',
-  'Пол',
-  'Бицепс',
-  'Грудь',
-  'Бедро'
-]
-
-const genderOptions = [
-  { label: 'Муж', value: 0 },
-  { label: 'Жен', value: 1 }
-]
+const DEFAULT_MEASUREMENTS = ['Рост', 'Вес', 'Возраст', 'Пол', 'Бицепс', 'Грудь', 'Бедро']
 
 async function loadMeasurements() {
   measurementsLoading.value = true
   try {
-    const token = localStorage.getItem('access_token')
-    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-
     const resp = await api.get('/measurements/')
-    const data = resp.data || []
-    measurements.value = Array.isArray(data) ? data.map((m: any) => ({ ...m })) : []
-
+    measurements.value = Array.isArray(resp.data) ? resp.data : []
     await ensureDefaultsExist()
-  } catch (err: unknown) {
-    try {
-      // @ts-ignore
-      const status = err && err.response && err.response.status
-      if (status === 401) {
-        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
-        void router.push('/signin')
-        return
-      }
-    } catch (_) { }
-    console.warn('Failed to load measurements', err)
+  } catch (err: any) {
+    if (err?.response?.status === 401) { void router.push('/signin'); return }
     $q.notify({ type: 'negative', message: 'Не удалось загрузить замеры' })
   } finally {
     measurementsLoading.value = false
@@ -328,301 +158,246 @@ async function loadMeasurements() {
 }
 
 async function ensureDefaultsExist() {
-  try {
-    const missing = DEFAULT_MEASUREMENTS.filter(t => !measurements.value.some(m => String(m.type).toLowerCase() === String(t).toLowerCase()))
-    if (!missing.length) return
-
-    for (const t of missing) {
-      try {
-        const payload = { type: t, value: 0, date: new Date().toISOString() }
-        const resp = await api.post('/measurements/create', payload)
-        if (resp && resp.data) measurements.value.push(resp.data)
-      } catch (e) {
-        console.warn('Failed to create measurement', t, e)
-      }
-    }
-  } catch (e) {
-    console.warn('ensureDefaultsExist error', e)
+  const missing = DEFAULT_MEASUREMENTS.filter((t) =>
+    !measurements.value.some((m) => String(m.type).toLowerCase() === t.toLowerCase())
+  )
+  for (const t of missing) {
+    try {
+      const resp = await api.post('/measurements/create', { type: t, value: 0, date: new Date().toISOString() })
+      if (resp.data) measurements.value.push(resp.data)
+    } catch { /* */ }
   }
 }
 
 async function saveMeasurements() {
   measurementsSaving.value = true
   try {
-    // Get current server list (baseline) because update replaces all entries
-    const resp = await api.get('/measurements/')
-    const serverList: Measurement[] = Array.isArray(resp.data) ? resp.data.map((s: any) => ({ ...s })) : []
-
-    // Build a mutable copy of server list keyed by id (if present)
-    const serverById = new Map<string | number, Measurement>()
-    for (const s of serverList) {
-      if ((s as any).id !== undefined && (s as any).id !== null) serverById.set(String((s as any).id), { ...s })
-      else {
-        const status = (err as any)?.response?.status
-      }
-    }
-
-    // Helper to generate negative integer IDs on the client to avoid colliding with server positive IDs
-    let clientIdCounter = -Date.now()
-    function generateClientId() { clientIdCounter -= 1; return clientIdCounter }
-
-    // Start merged array as copy of serverList (we'll update records in place)
-    const mergedItems: { id: number | undefined; type: string; value: number | string | null; date: string }[] = serverList.map(s => ({
-      id: (s as any).id !== undefined && (s as any).id !== null ? Number((s as any).id) : undefined,
-      type: s.type,
-      value: s.value ?? 0,
-      date: s.date || new Date().toISOString(),
+    const payload = measurements.value.map((m) => ({
+      id: (m as any).id,
+      type: m.type,
+      value: m.value ?? 0,
+      date: m.date || new Date().toISOString(),
     }))
-
-    // Update existing server items by id if local edits exist; otherwise append local-only items with generated client id
-    for (const l of measurements.value) {
-      const lid = (l as any).id !== undefined && (l as any).id !== null ? String((l as any).id) : null
-      if (lid && serverById.has(lid)) {
-        // find in mergedItems by id and update
-        const idx = mergedItems.findIndex(mi => mi.id !== undefined && String(mi.id) === lid)
-        if (idx !== -1) {
-          const mi = mergedItems[idx]!
-          mi.value = (l.value ?? mi.value)
-          mi.date = l.date || mi.date || new Date().toISOString()
-        }
-      } else {
-        // local-only: create new item with generated client id (negative number)
-        const key = lid || `${l.type}:${l.date || ''}:${Math.random()}`
-        // ensure we don't duplicate by same key
-        const exists = mergedItems.find(mi => String(mi.type) === String(l.type) && (mi.date || '') === (l.date || ''))
-        if (exists) {
-          exists.value = l.value ?? exists.value
-          exists.date = l.date || exists.date
-        } else {
-          const newId = typeof (l as any).id === 'number' && Number((l as any).id) !== 0 ? Number((l as any).id) : generateClientId()
-          mergedItems.push({ id: newId, type: l.type, value: l.value ?? 0, date: l.date || new Date().toISOString() })
-        }
-      }
-    }
-
-    await api.post('/measurements/update', mergedItems)
-    $q.notify({ type: 'positive', message: 'Замеры сохранены' })
+    await api.post('/measurements/update', payload)
+    $q.notify({ type: 'positive', message: 'Замеры сохранены 🌿' })
     await loadMeasurements()
-  } catch (err: unknown) {
-    try {
-      const status = (err as any)?.response?.status
-      if (status === 401) {
-        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
-        void router.push('/signin')
-        return
-      }
-      // If server returned 500 on update — silently ignore (do not persist locally)
-      if (status === 500) {
-        return
-      }
-    } catch (_) { }
-    console.warn('Failed to save measurements', err)
-    $q.notify({ type: 'negative', message: 'Не удалось сохранить замеры' })
+  } catch (err: any) {
+    if (err?.response?.status !== 500)
+      $q.notify({ type: 'negative', message: 'Не удалось сохранить замеры' })
   } finally {
     measurementsSaving.value = false
   }
 }
 
-onBeforeMount(() => {
-  void loadMeasurements()
-})
-
-// ---------------- trainings handling ----------------
-const trainingsLoading = ref(false)
-
-async function loadTrainings() {
-  trainingsLoading.value = true
-  try {
-    const token = localStorage.getItem('access_token')
-    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-
-    // Only load planned trainings for now (user_performed not requested)
-    const plannedResp = await api.get('/training/planned')
-    const planned = Array.isArray(plannedResp.data) ? plannedResp.data : []
-
-    profile.value.workouts = planned.length
-    persist()
-  } catch (err: unknown) {
-    try {
-      // @ts-ignore
-      const status = err && err.response && err.response.status
-      if (status === 401) {
-        $q.notify({ type: 'warning', message: 'Требуется авторизация' })
-        void router.push('/signin')
-        return
-      }
-    } catch (_) { }
-    console.warn('Failed to load trainings', err)
-  } finally {
-    trainingsLoading.value = false
-  }
-}
-
-// ---------------- chart/dashboard helpers ----------------
-const selectedMeasurement = ref<string | null>(null)
-
-const measurementOptions = computed(() => {
-  // unique measurement types from measurements, excluding Age and Gender
-  const exclude = ['возраст', 'пол']
-  const types = Array.from(new Set(measurements.value.map(m => String(m.type))))
-  return types
-    .filter(t => !exclude.includes(String(t).toLowerCase()))
-    .map(t => ({ label: t, value: t }))
-})
-
-// measurementTypes: simpler array of strings used for chips UI
-const measurementTypes = computed(() => measurementOptions.value.map(o => o.value))
-
-const chartWidth = 720
-const chartHeight = 260
-const chartPadding = 24
-
-// latestMeasurements: map measurements -> take last entry per type by date
 const latestMeasurements = computed(() => {
   const byType = new Map<string, Measurement>()
   for (const m of measurements.value) {
     const key = String(m.type).toLowerCase()
-    const date = m.date ? new Date(m.date) : null
-    const existing = byType.get(key)
-    if (!existing) {
-      byType.set(key, m)
-      continue
-    }
-    const exDate = existing.date ? new Date(existing.date) : null
-    if (!exDate && date) byType.set(key, m)
-    else if (date && exDate && date.getTime() >= exDate.getTime()) byType.set(key, m)
+    const prev = byType.get(key)
+    const mDate = m.date ? new Date(m.date).getTime() : 0
+    const pDate = prev?.date ? new Date(prev.date).getTime() : 0
+    if (!prev || mDate >= pDate) byType.set(key, m)
   }
-  return Array.from(byType.values())
+  return [...byType.values()]
 })
 
-const timeRange = ref<'week' | 'month' | 'year' | 'all'>('all')
-const timeRangeOptions = [
-  { label: 'Неделя', value: 'week' },
-  { label: 'Месяц', value: 'month' },
-  { label: 'Год', value: 'year' },
-  { label: 'Все', value: 'all' },
+// Chart
+const selectedMeasurement = ref<string | null>(null)
+const timeRange = ref<string>('all')
+const timeRanges = [
+  { val: 'week', label: 'Неделя' },
+  { val: 'month', label: 'Месяц' },
+  { val: 'year', label: 'Год' },
+  { val: 'all', label: 'Всё' },
 ]
 
-function withinRange(date: Date, range: string) {
-  const now = new Date()
-  if (range === 'all') return true
-  const diff = now.getTime() - date.getTime()
-  if (range === 'week') return diff <= 1000 * 60 * 60 * 24 * 7
-  if (range === 'month') return diff <= 1000 * 60 * 60 * 24 * 30
-  if (range === 'year') return diff <= 1000 * 60 * 60 * 24 * 365
+const measurementTypes = computed(() => {
+  const exclude = ['возраст', 'пол']
+  return [...new Set(measurements.value.map((m) => String(m.type)))]
+    .filter((t) => !exclude.includes(t.toLowerCase()))
+})
+
+watch(measurementTypes, (types) => {
+  if (!selectedMeasurement.value && types.length) selectedMeasurement.value = types[0]!
+})
+
+const chartW = 600
+const chartH = 200
+const chartPad = 20
+
+function withinRange(d: Date) {
+  const diff = Date.now() - d.getTime()
+  if (timeRange.value === 'week') return diff <= 864e5 * 7
+  if (timeRange.value === 'month') return diff <= 864e5 * 30
+  if (timeRange.value === 'year') return diff <= 864e5 * 365
   return true
 }
 
 const chartPoints = computed(() => {
   if (!selectedMeasurement.value) return []
-  const rows = measurements.value.filter(m => String(m.type) === selectedMeasurement.value)
-  const parsed = rows
-    .map(r => ({
-      date: r.date ? new Date(r.date) : null,
-      value: typeof r.value === 'string' ? Number(r.value) : (r.value ?? 0)
-    }))
-    .filter(p => p.date && !isNaN(p.date.getTime()) && !isNaN(Number(p.value)))
-    .sort((a, b) => (a.date!.getTime() - b.date!.getTime()))
-
-  const filtered = parsed.filter(p => withinRange(p.date!, timeRange.value))
-  if (!filtered.length) return []
-
-  const first = filtered[0]!
-  const last = filtered[filtered.length - 1]!
-  const minDate = first.date!.getTime()
-  const maxDate = last.date!.getTime()
-  const values = filtered.map(p => Number(p.value))
-  const minV = Math.min(...values)
-  const maxV = Math.max(...values)
-  const dateRange = Math.max(1, maxDate - minDate)
-  const valueRange = Math.max(1e-6, maxV - minV)
-
-  return filtered.map((p) => {
-    const t = p.date!.getTime()
-    const x = chartPadding + ((t - minDate) / dateRange) * (chartWidth - chartPadding * 2)
-    const y = chartPadding + (1 - ((Number(p.value) - minV) / valueRange)) * (chartHeight - chartPadding * 2)
-    return { x, y, value: p.value, label: `${p.date!.toLocaleDateString()}: ${p.value}`, date: p.date }
-  })
+  const rows = measurements.value
+    .filter((m) => String(m.type) === selectedMeasurement.value)
+    .map((r) => ({ date: r.date ? new Date(r.date) : null, value: Number(r.value ?? 0) }))
+    .filter((p) => p.date && !isNaN(p.date.getTime()) && !isNaN(p.value))
+    .filter((p) => withinRange(p.date!))
+    .sort((a, b) => a.date!.getTime() - b.date!.getTime())
+  if (!rows.length) return []
+  const minD = rows[0]!.date!.getTime()
+  const maxD = rows[rows.length - 1]!.date!.getTime()
+  const vals = rows.map((r) => r.value)
+  const minV = Math.min(...vals)
+  const maxV = Math.max(...vals)
+  const dR = Math.max(1, maxD - minD)
+  const vR = Math.max(1e-6, maxV - minV)
+  return rows.map((r) => ({
+    x: chartPad + ((r.date!.getTime() - minD) / dR) * (chartW - chartPad * 2),
+    y: chartPad + (1 - (r.value - minV) / vR) * (chartH - chartPad * 2),
+    date: r.date,
+  }))
 })
 
-const linePath = computed(() => {
-  const pts = chartPoints.value
-  if (!pts.length) return ''
-  return pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(2)} ${p.y.toFixed(2)}`).join(' ')
-})
-
-function formatDateLabel(d?: Date | null) {
-  if (!d) return ''
-  // short date: DD.MM
-  return `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}`
-}
+const linePath = computed(() =>
+  chartPoints.value.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ')
+)
 
 const tickLabels = computed(() => {
   const pts = chartPoints.value
   if (!pts.length) return ['', '', '']
-  const first = pts[0].date!
-  const last = pts[pts.length - 1].date!
-  const mid = new Date((first.getTime() + last.getTime()) / 2)
-  return [formatDateLabel(first), formatDateLabel(mid), formatDateLabel(last)]
+  const fmt = (d: Date | null | undefined) => d ? `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, '0')}` : ''
+  const mid = pts[Math.floor(pts.length / 2)]
+  return [fmt(pts[0]!.date), fmt(mid?.date), fmt(pts[pts.length - 1]!.date)]
 })
 
-// auto-select first available measurement when list loads
-watch(measurementOptions, (opts) => {
-  if ((!selectedMeasurement.value || selectedMeasurement.value === '') && opts && opts.length) {
-    const first = opts[0] as { value: string }
-    selectedMeasurement.value = first.value
-  }
+onBeforeMount(() => { void loadMeasurements() })
+onMounted(() => {
+  void fetchUser()
 })
 </script>
 
 <style scoped>
-.page-with-nav {
-  padding-bottom: 88px;
+.profile-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
 }
 
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #2b2b2b;
-  margin: 6px 0 8px;
+.profile-avatar {
+  font-size: 52px;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.75);
+  box-shadow: 0 4px 0 0 var(--ai-shadow);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
-.rounded-card {
-  border-radius: 12px;
+.profile-info { flex: 1; }
+.profile-name { font-size: 20px; font-weight: 800; color: var(--ai-text); }
+.profile-meta { font-size: 13px; color: var(--ai-shadow); }
+
+.icon-btn { padding: 8px 14px; font-size: 13px; }
+
+.hint-text { color: var(--ai-shadow); font-size: 13px; text-align: center; padding: 12px; }
+
+.meas-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(189,174,160,0.2);
 }
 
-.chips-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 8px;
+.meas-row:last-of-type { border-bottom: none; }
+
+.meas-type {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ai-text);
 }
 
-.chip {
-  border-radius: 12px;
+.ai-input-sm {
+  width: 90px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8);
+  color: var(--ai-text);
+  font-size: 14px;
+  font-family: 'Nunito', sans-serif;
+  outline: none;
+  text-align: center;
 }
 
-.clickable {
+.ai-input-sm:focus { border-color: var(--ai-teal); }
+
+.ai-select-sm {
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8);
+  color: var(--ai-text);
+  font-size: 14px;
+  font-family: 'Nunito', sans-serif;
+  outline: none;
+}
+
+.save-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.meas-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.chip-btn { padding: 6px 12px; font-size: 12px; }
+
+.time-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.time-tab {
+  flex: 1;
+  padding: 6px;
+  border-radius: 10px;
+  border: 2px solid #e8dcc8;
+  background: transparent;
+  color: var(--ai-text);
+  font-size: 12px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
 }
 
-.chart-container {
+.time-tab.active {
+  background: var(--ai-teal);
+  border-color: var(--ai-teal);
+  color: #fff;
+}
+
+.chart-wrap {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  gap: 4px;
 }
 
-.chart-svg {
-  width: 100%;
-  height: auto;
-  max-width: 100%;
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 6px;
-}
-
-.chart-legend {
-  font-size: 13px;
-  color: #666;
-  margin-top: 8px;
+.chart-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--ai-shadow);
+  padding: 0 2px;
 }
 </style>

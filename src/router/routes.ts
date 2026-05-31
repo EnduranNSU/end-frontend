@@ -21,6 +21,8 @@ const routes: RouteRecordRaw[] = [
       { path: 'profile', component: () => import('pages/ProfilePage.vue') },
       { path: 'coach', component: () => import('pages/VirtualCoachPage.vue') },
       { path: 'proad', component: () => import('pages/ProAd.vue') },
+      { path: 'squat-coach', component: () => import('pages/SquatCoachPage.vue') },
+      { path: 'squat-analyze', component: () => import('pages/SquatAnalyzePage.vue') },
     ],
   },
 

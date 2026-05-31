@@ -1,129 +1,117 @@
 <template>
-  <q-page class="q-pa-md page-with-nav">
-    <div class="row items-center q-mb-md">
-      <q-btn dense flat round icon="arrow_back" @click="goBack" />
-      <div class="text-h6 text-weight-medium q-ml-sm">{{ item?.training?.title || 'Выполненная тренировка' }}</div>
+  <q-page class="ai-page">
+    <div class="page-header">
+      <button class="back-btn" @click="router.back()">← Назад</button>
+      <div class="page-title">{{ item?.training?.title || 'Тренировка' }}</div>
     </div>
 
-    <q-card flat bordered class="q-pa-md rounded-card" v-if="loading">
-      <div class="text-center">Загрузка...</div>
-    </q-card>
+    <div v-if="loading" class="hint-text">Загрузка…</div>
+    <div v-else-if="!item" class="hint-text">Тренировка не найдена</div>
 
-    <q-card flat bordered class="q-pa-md rounded-card" v-else-if="!item">
-      <div class="text-center">Тренировка не найдена.</div>
-    </q-card>
-
-    <div v-else>
-      <q-card flat bordered class="q-pa-md rounded-card q-mb-md">
-        <div class="row items-center">
-          <div class="col">
-            <div class="text-subtitle1">Дата: {{ item.date || '—' }}</div>
-            <div class="text-caption q-mt-sm">Название: {{ item.training?.title || '—' }}</div>
-          </div>
-          <div class="col-auto" v-if="inProgress">
-            <div class="text-h6">{{ formatElapsed(elapsed) }}</div>
-          </div>
+    <template v-else>
+      <!-- Info card -->
+      <div class="ai-card info-card">
+        <div class="info-row">
+          <span class="info-label">📅 Дата</span>
+          <span class="info-val">{{ item.date ? new Date(item.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' }) : '—' }}</span>
         </div>
-        <div v-if="inProgress" class="q-mt-sm row items-center">
-          <div class="col-6">
-            <q-input dense type="number" v-model.number="globalRest" label="Отдых между сетами (сек)"
-              @change="applyGlobalRest" />
-          </div>
-          <div class="col-6 text-caption">Установите общий отдых, он будет применён ко всем сетам</div>
+        <div class="info-row" v-if="inProgress">
+          <span class="info-label">⏱ Время</span>
+          <span class="info-val timer-val">{{ formatElapsed(elapsed) }}</span>
         </div>
-        <div class="q-mt-md">
-          <q-btn dense flat label="Редактировать" color="primary" @click="openEdit" v-if="!inProgress" />
-          <q-btn dense flat label="Удалить" color="negative" @click="confirmDelete" class="q-ml-sm"
-            v-if="!inProgress" />
-          <q-btn dense color="primary" label="Закончить тренировку" @click="finishWorkout" v-if="inProgress" />
+        <div v-if="inProgress" class="rest-row">
+          <label class="ai-label">Отдых между сетами (сек)</label>
+          <input v-model.number="globalRest" type="number" class="ai-input-sm" @change="applyGlobalRest" />
         </div>
-      </q-card>
-
-      <div v-for="(pe, idx) in item.training?.perfomable_exercises || []" :key="idx" class="q-mb-sm">
-        <q-card flat bordered class="q-pa-sm">
-          <div class="row items-center q-mb-sm">
-            <div class="col">
-              <div class="text-weight-medium">{{ pe.exercise?.title || 'Упражнение' }}</div>
-              <div class="text-caption text-grey-7">Тегов: {{ (pe.exercise?.tags || []).join(', ') }}</div>
-            </div>
-            <div class="col-auto">
-              <div class="text-caption">Сетов: {{ (pe.sets || []).length }}</div>
-            </div>
-          </div>
-
-          <div v-for="(s, sIdx) in pe.sets || []" :key="sIdx" class="q-mb-sm q-pa-sm"
-            style="border-top:1px dashed var(--q-color-grey-3)">
-            <div class="row items-center q-gutter-sm">
-              <div class="col-3">
-                <q-input dense type="number" v-model.number="s.repetitions" label="reps" />
-              </div>
-              <div class="col-3">
-                <q-input dense type="number" v-model.number="s.weight" label="kg" />
-              </div>
-              <div class="col">
-                <div class="text-caption">rest: {{ s.rest_duration || 60 }}s</div>
-              </div>
-              <div class="col-auto">
-                <q-btn dense color="positive" icon="check" :flat="!isSetDone(idx, sIdx)" @click="markSetDone(idx, sIdx)"
-                  :label="isSetDone(idx, sIdx) ? 'Done' : 'Done'" />
-              </div>
-            </div>
-
-            <div class="row items-center q-mt-sm">
-              <div class="col-auto">
-                <q-chip dense color="green" text-color="white" v-if="isSetDone(idx, sIdx)">Выполнен</q-chip>
-              </div>
-              <div class="col">
-                <div class="text-caption">
-                  <span v-if="getTimer(idx, sIdx) && getTimer(idx, sIdx).running">Осталось отдыха: {{
-                    getTimer(idx,sIdx).remaining }} с</span>
-                  <span v-else>Отдых: {{ s.rest_duration || 60 }} с</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </q-card>
+        <div class="info-actions">
+          <button v-if="inProgress" class="ai-pill-btn finish-btn" @click="finishWorkout">
+            Завершить тренировку
+          </button>
+          <template v-else>
+            <button class="ai-pill-btn outline" @click="openEdit">Редактировать</button>
+            <button class="ai-pill-btn outline danger" @click="confirmDelete">Удалить</button>
+          </template>
+        </div>
       </div>
-    </div>
 
-    <!-- Edit dialog (simple) -->
-    <q-dialog v-model="editDialog">
-      <q-card style="min-width:320px; max-width:92vw">
-        <q-card-section>
-          <div class="text-h6">Редактировать выполнение</div>
-        </q-card-section>
-        <q-card-section>
-          <q-form @submit.prevent="saveUpdate">
-            <div class="q-gutter-md">
-              <q-input v-model="editModel.date" label="Дата" dense />
-              <q-input v-model="editModel.training.title" label="Название" dense />
-              <div class="row q-justify-end q-mt-md">
-                <q-btn flat label="Отмена" color="grey" v-close-popup @click="() => (editDialog = false)" />
-                <q-btn color="primary" label="Сохранить" type="submit" />
-              </div>
+      <!-- Exercises -->
+      <div
+        v-for="(pe, peIdx) in item.training?.perfomable_exercises || []"
+        :key="peIdx"
+        class="ai-card ex-block"
+      >
+        <div class="ex-header">
+          <div class="ex-name">{{ pe.exercise?.title || 'Упражнение' }}</div>
+          <div class="ex-count">{{ (pe.sets || []).length }} сет.</div>
+        </div>
+
+        <div
+          v-for="(s, sIdx) in pe.sets || []"
+          :key="sIdx"
+          class="set-row"
+          :class="{ done: isSetDone(peIdx, sIdx) }"
+        >
+          <div class="set-fields">
+            <div class="set-field">
+              <label class="ai-label">Повт.</label>
+              <input v-model.number="s.repetitions" type="number" class="ai-input-sm" :readonly="!inProgress" />
             </div>
-          </q-form>
-        </q-card-section>
-      </q-card>
-    </q-dialog>
-
-    <!-- Finish workout dialog -->
-    <q-dialog v-model="finishDialog">
-      <q-card style="min-width:320px; max-width:92vw">
-        <q-card-section>
-          <div class="text-h6">Поздравляем!</div>
-        </q-card-section>
-        <q-card-section>
-          <div class="text-subtitle1 text-center q-mb-md">Вы завершили тренировку</div>
-          <div class="text-h5 text-center text-weight-bold q-mb-md">{{ finishDialogTime }}</div>
-          <div class="row q-justify-end q-mt-md q-gutter-sm">
-            <q-btn flat label="Отмена" color="grey" @click="onFinishDialogCancel" />
-            <q-btn color="positive" label="Готово" @click="onFinishDialogOk" />
+            <div class="set-field">
+              <label class="ai-label">Кг</label>
+              <input v-model.number="s.weight" type="number" class="ai-input-sm" :readonly="!inProgress" />
+            </div>
+            <div class="set-field">
+              <label class="ai-label">Отдых</label>
+              <div class="rest-val">{{ s.rest_duration || 60 }}с</div>
+            </div>
           </div>
-        </q-card-section>
-      </q-card>
+
+          <template v-if="inProgress">
+            <div v-if="getTimer(peIdx, sIdx)?.running" class="rest-timer">
+              ⏳ {{ getTimer(peIdx, sIdx)!.remaining }}с
+              <button class="skip-btn" @click="stopRestTimer(`${peIdx}-${sIdx}`)">Пропустить</button>
+            </div>
+            <button
+              v-else
+              class="done-btn"
+              :class="{ completed: isSetDone(peIdx, sIdx) }"
+              @click="markSetDone(peIdx, sIdx)"
+            >
+              {{ isSetDone(peIdx, sIdx) ? '✓ Выполнен' : 'Выполнен?' }}
+            </button>
+          </template>
+          <div v-else-if="isSetDone(peIdx, sIdx)" class="done-badge">✓</div>
+        </div>
+      </div>
+    </template>
+
+    <!-- Edit dialog -->
+    <q-dialog v-model="editDialog">
+      <div class="ai-dialog">
+        <div class="dialog-title">Редактировать</div>
+        <label class="ai-label">Дата</label>
+        <input v-model="editModel.date" class="ai-input" />
+        <label class="ai-label">Название</label>
+        <input v-model="editModel.training.title" class="ai-input" />
+        <div class="dialog-actions">
+          <button class="ai-pill-btn outline" @click="editDialog = false">Отмена</button>
+          <button class="ai-pill-btn" @click="saveUpdate">Сохранить</button>
+        </div>
+      </div>
     </q-dialog>
 
+    <!-- Finish dialog -->
+    <q-dialog v-model="finishDialog">
+      <div class="ai-dialog finish-dialog">
+        <div class="finish-icon">Отлично!</div>
+        <div class="dialog-title">Тренировка завершена!</div>
+        <div class="finish-time">{{ finishDialogTime }}</div>
+        <div class="dialog-actions">
+          <button class="ai-pill-btn outline" @click="onFinishDialogCancel">Продолжить</button>
+          <button class="ai-pill-btn" @click="onFinishDialogOk">Сохранить</button>
+        </div>
+      </div>
+    </q-dialog>
   </q-page>
 </template>
 
@@ -132,6 +120,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from 'src/boot/axios'
 import { useQuasar } from 'quasar'
+import { tagLabel } from 'src/utils/tags'
 
 const route = useRoute()
 const router = useRouter()
@@ -143,99 +132,77 @@ const editDialog = ref(false)
 const editModel = ref<any>({ date: '', training: { title: '' } })
 const finishDialog = ref(false)
 const finishDialogTime = ref('')
-// in-progress session state
 const inProgress = ref(false)
 const elapsed = ref(0)
-let timerId: number | null = null
-// global rest (seconds) editable by user before marking sets done
-const globalRest = ref<number>(60)
-// per-set timers keyed by "peIdx-setIdx" (reactive)
+const globalRest = ref(60)
 const timers = ref<Record<string, { remaining: number; intervalId: number | null; running: boolean }>>({})
+let timerId: number | null = null
 
 async function loadItem() {
   loading.value = true
-  // if mode=inprogress and plannedId present, load planned training and start timer
   const mode = String(route.query.mode || '')
   const plannedId = Number(route.query.plannedId || 0)
   const id = Number(route.query.id || route.params.id)
 
   if (mode === 'inprogress' && plannedId) {
     try {
-      // fetch planned training and use it as the in-memory item until finished
+      const token = localStorage.getItem('access_token')
+      if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
       const resp = await api.get(`/training/planned/${plannedId}`)
       const planned = resp.data
-      const today = new Date().toISOString().split('T')[0]
+      const today = new Date().toISOString().split('T')[0]!
       item.value = { date: today, weekdays: planned.weekdays || [], training: planned.training || { title: '', perfomable_exercises: [] } }
-      // set default global rest from first set if present
       try {
-        const firstPe = item.value.training.perfomable_exercises?.[0]
-        const firstSet = firstPe?.sets?.[0]
-        if (firstSet && Number(firstSet.rest_duration)) globalRest.value = Number(firstSet.rest_duration)
-      } catch (e) { /* ignore */ }
+        const firstRest = item.value.training.perfomable_exercises?.[0]?.sets?.[0]?.rest_duration
+        if (firstRest) globalRest.value = Number(firstRest)
+      } catch { /* */ }
       inProgress.value = true
       startTimer()
-    } catch (err) {
-      console.error('Failed to load planned for in-progress', err)
-      $q.notify({ type: 'negative', message: 'Не удалось загрузить запланированную тренировку' })
+    } catch {
+      $q.notify({ type: 'negative', message: 'Не удалось загрузить тренировку' })
       void router.push('/mainPage')
-    } finally {
-      loading.value = false
-    }
+    } finally { loading.value = false }
     return
   }
 
-  if (!id) {
-    $q.notify({ type: 'negative', message: 'Не указан id' })
-    void router.push('/performedTrainings')
-    loading.value = false
-    return
-  }
+  if (!id) { void router.push('/history'); loading.value = false; return }
 
   try {
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     const resp = await api.get(`/training/user_performed/${id}`)
     item.value = resp.data || null
-  } catch (err) {
-    console.error('Failed to load performed', err)
+  } catch {
     $q.notify({ type: 'negative', message: 'Не удалось загрузить' })
-    item.value = null
-  } finally {
-    loading.value = false
-  }
+  } finally { loading.value = false }
 }
 
 function startTimer() {
-  // start elapsed timer
   if (timerId) return
   timerId = window.setInterval(() => { elapsed.value += 1 }, 1000)
 }
 
 function stopTimer() {
-  if (timerId) { window.clearInterval(timerId); timerId = null }
+  if (timerId) { clearInterval(timerId); timerId = null }
 }
 
 function applyGlobalRest() {
-  // apply global rest value to all sets
-  if (!item.value || !item.value.training?.perfomable_exercises) return
   const r = Number(globalRest.value || 0)
-  item.value.training.perfomable_exercises.forEach((pe: any) => {
-    if (Array.isArray(pe.sets)) pe.sets.forEach((s: any) => { s.rest_duration = r })
+  item.value?.training?.perfomable_exercises?.forEach((pe: any) => {
+    pe.sets?.forEach((s: any) => { s.rest_duration = r })
   })
 }
 
-function startRestTimer(key: string, duration: number) {
-  // clear existing
-  if (timers.value[key] && timers.value[key].intervalId) {
-    window.clearInterval(timers.value[key].intervalId!)
-  }
-  // assign reactively
+function startRestTimerFn(key: string, duration: number) {
+  if (timers.value[key]?.intervalId) clearInterval(timers.value[key].intervalId!)
   timers.value[key] = { remaining: duration, intervalId: null, running: true }
-  timers.value[key].intervalId = window.setInterval(() => {
+  timers.value[key]!.intervalId = window.setInterval(() => {
     if (!timers.value[key]) return
-    timers.value[key].remaining -= 1
-    if (timers.value[key].remaining <= 0) {
-      if (timers.value[key].intervalId) { window.clearInterval(timers.value[key].intervalId) }
-      timers.value[key].running = false
-      timers.value[key].intervalId = null
+    timers.value[key]!.remaining -= 1
+    if (timers.value[key]!.remaining <= 0) {
+      clearInterval(timers.value[key]!.intervalId!)
+      timers.value[key]!.running = false
+      timers.value[key]!.intervalId = null
     }
   }, 1000)
 }
@@ -243,14 +210,8 @@ function startRestTimer(key: string, duration: number) {
 function stopRestTimer(key: string) {
   const t = timers.value[key]
   if (!t) return
-  if (t.intervalId) {
-    window.clearInterval(t.intervalId)
-  }
-  t.running = false
-  t.remaining = 0
-  t.intervalId = null
-  // remove timer entry so template falls back to static rest display
-  try { delete timers.value[key] } catch (e) { timers.value[key] = t }
+  if (t.intervalId) clearInterval(t.intervalId)
+  delete timers.value[key]
 }
 
 function goBack() { void router.back() }
@@ -265,96 +226,75 @@ async function saveUpdate() {
   const id = Number(route.query.id || route.params.id)
   if (!id) return
   try {
-    const payload = { date: editModel.value.date, training: { title: editModel.value.training?.title || '' } }
-    const resp = await api.post(`/training/user_performed/update/${id}`, payload)
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    const resp = await api.post(`/training/user_performed/update/${id}`, {
+      date: editModel.value.date,
+      training: { title: editModel.value.training?.title || '' },
+    })
     item.value = resp.data || item.value
     $q.notify({ type: 'positive', message: 'Сохранено' })
     editDialog.value = false
-  } catch (err) {
-    console.error('Update failed', err)
+  } catch {
     $q.notify({ type: 'negative', message: 'Ошибка при сохранении' })
   }
 }
 
-async function confirmDelete() {
+function confirmDelete() {
   const id = Number(route.query.id || route.params.id)
   if (!id) return
-  $q.dialog({
-    title: 'Подтвердите',
-    message: 'Удалить запись?',
-    cancel: true
-  }).onOk(async () => {
-    try {
-      await api.post(`/training/user_performed/delete/${id}`)
-      $q.notify({ type: 'positive', message: 'Удалено' })
-      void router.push('/performedTrainings')
-    } catch (err) {
-      console.error('Delete failed', err)
-      $q.notify({ type: 'negative', message: 'Ошибка при удалении' })
-    }
-  })
+  $q.dialog({ title: 'Удалить?', message: 'Запись будет удалена', cancel: true })
+    .onOk(async () => {
+      try {
+        const token = localStorage.getItem('access_token')
+        if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        await api.post(`/training/user_performed/delete/${id}`)
+        $q.notify({ type: 'positive', message: 'Удалено' })
+        void router.push('/history')
+      } catch {
+        $q.notify({ type: 'negative', message: 'Ошибка при удалении' })
+      }
+    })
 }
 
-onMounted(() => { void loadItem() })
-
-onUnmounted(() => {
-  // clear any running timers
-  Object.values(timers.value || {}).forEach((t) => { if (t.intervalId) window.clearInterval(t.intervalId) })
-  stopTimer()
-})
-
-// finish in-progress workout: show dialog with elapsed time, then create on server
 function finishWorkout() {
-  if (!inProgress.value || !item.value) return
   stopTimer()
   finishDialogTime.value = formatElapsed(elapsed.value)
   finishDialog.value = true
 }
 
-function onFinishDialogOk() {
-  finishDialog.value = false
-  void continueFinish()
-}
+function onFinishDialogOk() { finishDialog.value = false; void continueFinish() }
+function onFinishDialogCancel() { finishDialog.value = false; startTimer() }
 
-function onFinishDialogCancel() {
-  finishDialog.value = false
-  startTimer()
-}
-
-// separate function to handle create after dialog confirms
 async function continueFinish() {
   if (!item.value) return
-  // build create payload and send to server
   try {
+    const token = localStorage.getItem('access_token')
+    if (token) api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     const perf = (item.value.training?.perfomable_exercises || []).map((pe: any) => ({
       exercise_id: Number(pe.exercise?.id ?? pe.exercise_id ?? 0),
-      sets: (pe.sets || []).map((s: any) => ({ weight: Number(s.weight || 0), repetitions: Number(s.repetitions || 0), rest_duration: Number(s.rest_duration || 0) })),
+      sets: (pe.sets || []).map((s: any) => ({
+        weight: Number(s.weight || 0), repetitions: Number(s.repetitions || 0), rest_duration: Number(s.rest_duration || 0),
+      })),
     }))
-    const payload = {
+    const resp = await api.post('/training/user_performed/create', {
       date: item.value.date || new Date().toISOString().split('T')[0],
       weekdays: item.value.weekdays || [],
-      training: {
-        title: item.value.training?.title || '',
-        perfomable_exercises: perf,
-      },
-    }
-    const resp = await api.post('/training/user_performed/create', payload)
+      training: { title: item.value.training?.title || '', perfomable_exercises: perf },
+    })
     const created = resp.data
-    if (created && created.id) {
-      // set created item locally and update route query to id
+    if (created?.id) {
       item.value = created
       inProgress.value = false
       elapsed.value = 0
-      $q.notify({ type: 'positive', message: 'Тренировка сохранена' })
+      $q.notify({ type: 'positive', message: 'Тренировка сохранена Отлично!' })
       void router.replace({ path: '/performedTraining', query: { id: String(created.id) } })
     } else {
-      $q.notify({ type: 'positive', message: 'Тренировка сохранена' })
       inProgress.value = false
+      $q.notify({ type: 'positive', message: 'Сохранено' })
     }
-  } catch (err) {
-    console.error('Create performed failed', err)
-    $q.notify({ type: 'negative', message: 'Не удалось сохранить выполненную тренировку' })
-    // resume timer so user can try again
+  } catch {
+    $q.notify({ type: 'negative', message: 'Не удалось сохранить тренировку' })
     startTimer()
   }
 }
@@ -363,57 +303,114 @@ function formatElapsed(sec: number) {
   const s = Math.max(0, Math.floor(sec))
   const mm = Math.floor(s / 60)
   const ss = s % 60
-  return `${mm.toString().padStart(2, '0')}:${ss.toString().padStart(2, '0')}`
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
-function isSetDone(peIdx: number, setIdx: number) {
-  try {
-    return Boolean(item.value.training.perfomable_exercises[peIdx].sets[setIdx].done)
-  } catch (e) {
-    return false
-  }
+function isSetDone(pi: number, si: number) {
+  try { return Boolean(item.value.training.perfomable_exercises[pi].sets[si].done) } catch { return false }
 }
 
-function getTimer(peIdx: number, setIdx: number) {
-  return timers.value[`${peIdx}-${setIdx}`]
-}
+function getTimer(pi: number, si: number) { return timers.value[`${pi}-${si}`] }
 
-async function markSetDone(peIdx: number, setIdx: number) {
+async function markSetDone(pi: number, si: number) {
   if (!item.value) return
-  const s = item.value.training.perfomable_exercises[peIdx].sets[setIdx]
+  const key = `${pi}-${si}`
+  if (timers.value[key]) { stopRestTimer(key); return }
+  const s = item.value.training.perfomable_exercises[pi]?.sets[si]
   if (!s) return
-
-  const key = `${peIdx}-${setIdx}`
-  // if timer is already running for this set and user presses Done again -> stop rest immediately
-  if (timers.value[key]) {
-    // stop regardless of running flag to be robust
-    stopRestTimer(key)
-    return
-  }
-
-  // if not yet marked done -> mark done and start rest (or finish if last)
   if (!s.done) {
     s.done = true
-
-    // if this was the last remaining unfinished set -> finish workout automatically
-    const allSets = (item.value.training?.perfomable_exercises || []).flatMap((pe: any) => (pe.sets || []))
+    const allSets = (item.value.training?.perfomable_exercises || []).flatMap((pe: any) => pe.sets || [])
     const anyNotDone = allSets.some((st: any) => !st.done)
-    if (!anyNotDone) {
-      // stop elapsed timer and trigger finish flow immediately
-      stopTimer()
-      await finishWorkout()
-      return
-    }
-
-    // start rest timer for this set using its rest_duration or globalRest
-    const rest = Number(s.rest_duration ?? globalRest.value ?? 60)
-    startRestTimer(key, rest)
+    if (anyNotDone) startRestTimerFn(key, s.rest_duration || globalRest.value || 60)
+    else finishWorkout()
   }
 }
+
+onMounted(() => { void loadItem() })
+onUnmounted(() => {
+  Object.values(timers.value || {}).forEach((t) => { if (t.intervalId) clearInterval(t.intervalId) })
+  stopTimer()
+})
 </script>
 
 <style scoped>
-.page-with-nav {
-  padding-bottom: 88px
+.page-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+.back-btn { background: none; border: none; color: var(--ai-teal); font-size: 15px; font-weight: 700; cursor: pointer; padding: 0; }
+.page-title { font-size: 18px; font-weight: 800; color: var(--ai-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hint-text { color: var(--ai-shadow); text-align: center; padding: 32px; font-size: 14px; }
+
+.info-card { display: flex; flex-direction: column; gap: 10px; }
+.info-row { display: flex; justify-content: space-between; align-items: center; }
+.info-label { font-size: 13px; color: var(--ai-shadow); font-weight: 600; }
+.info-val { font-size: 15px; font-weight: 700; color: var(--ai-text); }
+.timer-val { font-size: 20px; color: var(--ai-teal); font-variant-numeric: tabular-nums; }
+.rest-row { display: flex; align-items: center; gap: 10px; }
+.ai-label { font-size: 12px; font-weight: 700; color: var(--ai-text); }
+.ai-input-sm {
+  padding: 7px 10px; border-radius: 10px; border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8); color: var(--ai-text); font-size: 13px;
+  font-family: 'Nunito', sans-serif; outline: none; width: 70px; text-align: center;
 }
+.ai-input-sm:focus { border-color: var(--ai-teal); }
+.info-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.finish-btn { background: var(--ai-green); box-shadow: 0 4px 0 0 #4e8a1e; }
+.finish-btn:active { transform: translateY(3px); box-shadow: 0 1px 0 0 #4e8a1e; }
+.ai-pill-btn.danger { color: #e05c5c; border-color: #e05c5c; }
+
+.ex-block { display: flex; flex-direction: column; gap: 10px; }
+.ex-header { display: flex; justify-content: space-between; align-items: center; }
+.ex-name { font-size: 15px; font-weight: 700; color: var(--ai-text); }
+.ex-count { font-size: 12px; color: var(--ai-shadow); }
+
+.set-row {
+  padding: 10px 12px; border-radius: 12px;
+  background: rgba(255,255,255,0.5);
+  display: flex; flex-direction: column; gap: 8px;
+  transition: background 0.2s;
+}
+.set-row.done { background: rgba(111,186,44,0.1); }
+
+.set-fields { display: flex; gap: 10px; }
+.set-field { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+.rest-val { font-size: 14px; font-weight: 700; color: var(--ai-shadow); padding-top: 6px; }
+
+.rest-timer {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 14px; font-weight: 700; color: var(--ai-amber);
+}
+.skip-btn {
+  background: none; border: 1px solid var(--ai-amber); color: var(--ai-amber);
+  border-radius: 50px; padding: 4px 10px; font-size: 12px; font-weight: 700;
+  font-family: 'Nunito', sans-serif; cursor: pointer;
+}
+.done-btn {
+  width: 100%; padding: 10px; border-radius: 50px; border: 2px solid var(--ai-teal);
+  background: transparent; color: var(--ai-teal); font-size: 14px; font-weight: 700;
+  font-family: 'Nunito', sans-serif; cursor: pointer; transition: background 0.15s, color 0.15s;
+}
+.done-btn.completed {
+  background: var(--ai-green); border-color: var(--ai-green); color: #fff;
+  box-shadow: 0 3px 0 0 #4e8a1e;
+}
+.done-badge { font-size: 18px; color: var(--ai-green); font-weight: 700; align-self: flex-end; }
+
+/* Dialog */
+.ai-dialog {
+  background: var(--ai-bg); border-radius: 24px; padding: 24px 20px;
+  width: min(360px, 92vw); box-shadow: 0 8px 0 0 var(--ai-shadow);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.dialog-title { font-size: 20px; font-weight: 800; color: var(--ai-text); }
+.ai-input {
+  width: 100%; padding: 10px 14px; border-radius: 12px; border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8); color: var(--ai-text); font-size: 14px;
+  font-family: 'Nunito', sans-serif; outline: none; box-sizing: border-box;
+}
+.ai-input:focus { border-color: var(--ai-teal); }
+.dialog-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; margin-top: 4px; }
+
+.finish-dialog { align-items: center; text-align: center; }
+.finish-icon { font-size: 56px; }
+.finish-time { font-size: 36px; font-weight: 800; color: var(--ai-teal); font-variant-numeric: tabular-nums; }
 </style>

@@ -29,9 +29,15 @@ yarn-error.log*
 *.njsproj
 *.sln
 
-# local .env files
-.env.local*
+# env files
+.env
+.env.*
+!.env.example
 
 ./vscode
 .vscode
 .vscode/
+
+# Build cache
+.cache/
+coverage/

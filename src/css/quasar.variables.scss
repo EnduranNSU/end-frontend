@@ -12,14 +12,18 @@
 // to match your app's branding.
 // Tip: Use the "Theme Builder" on Quasar's documentation website.
 
-$primary: #1976d2;
-$secondary: #26a69a;
-$accent: #9c27b0;
+// Animal Island palette
+$primary: #19c8b9;      // mint teal
+$secondary: #f0a629;    // warm amber
+$accent: #6fba2c;       // nature green
 
-$dark: #1d1d1d;
-$dark-page: #121212;
+$dark: #725d42;
+$dark-page: #3d2f1e;
 
-$positive: #21ba45;
-$negative: #c10015;
-$info: #31ccec;
+$positive: #6fba2c;
+$negative: #e05c5c;
+$info: #19c8b9;
 $warning: #f2c037;
+
+// Background
+$body-bg: rgb(247, 243, 223);

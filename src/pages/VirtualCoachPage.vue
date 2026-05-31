@@ -1,50 +1,82 @@
 <template>
-  <q-page class="page-with-nav column no-wrap">
-    <q-toolbar class="bg-primary text-white q-px-md">
-      <q-avatar size="32px" class="q-mr-sm">
-        <img :src="botAvatar" alt="coach" />
-      </q-avatar>
-      <q-toolbar-title>Виртуальный коуч</q-toolbar-title>
-    </q-toolbar>
+  <div class="coach-page">
+    <!-- Header -->
+    <div class="coach-header">
+      <span class="coach-avatar">🤖</span>
+      <div>
+        <div class="coach-name">Виртуальный коуч</div>
+        <div class="coach-status">{{ typing ? 'печатает…' : 'онлайн' }}</div>
+      </div>
+    </div>
 
-    <div class="chat-area col bg-grey-1">
-      <div ref="scrollAreaRef" class="fit chat-scroll">
-        <div class="q-pa-md q-gutter-md">
-          <!-- Simple chat bubbles (always visible) -->
-          <div v-for="m in messages" :key="m.id" class="chat-bubble" :class="{ mine: m.mine }">
-            <div v-if="!m.mine" class="avatar-wrap">
-              <img class="avatar" :src="botAvatar" alt="bot" />
-            </div>
-            <div class="bubble-inner">
-              <div class="bubble-text" v-html="formatMessageHtml(m.text)"></div>
-              <div class="bubble-meta">{{ m.stamp }}</div>
-            </div>
-            <div v-if="m.mine" class="avatar-wrap user">
-              <img class="avatar" :src="userAvatar" alt="you" />
-            </div>
+    <!-- Messages -->
+    <div class="chat-area" ref="scrollAreaRef">
+      <div class="chat-inner">
+        <div
+          v-for="m in messages" :key="m.id"
+          class="bubble-wrap"
+          :class="{ mine: m.mine }"
+        >
+          <div v-if="!m.mine" class="bubble-avatar">🤖</div>
+          <div class="bubble" :class="{ mine: m.mine }">
+            <div class="bubble-text" v-html="formatMessageHtml(m.text)" />
+            <div class="bubble-time">{{ m.stamp }}</div>
           </div>
+        </div>
 
-          <div v-if="typing" class="typing-indicator row items-center q-mt-sm">
-            <q-avatar size="28px">
-              <img :src="botAvatar" alt="bot" />
-            </q-avatar>
-            <div class="dots q-ml-sm">
-              <span></span><span></span><span></span>
-            </div>
+        <div v-if="typing" class="bubble-wrap">
+          <div class="bubble-avatar">🤖</div>
+          <div class="bubble typing-dots">
+            <span /><span /><span />
           </div>
+        </div>
+
+        <div ref="bottomAnchorRef" style="height:1px;flex-shrink:0" />
+      </div>
+    </div>
+
+    <!-- Day picker overlay -->
+    <div v-if="showDayPicker" class="day-picker-overlay" @click.self="showDayPicker = false">
+      <div class="day-picker-card">
+        <div class="day-picker-title">В какие дни тренировка?</div>
+        <div class="days-grid">
+          <button
+            v-for="d in weekdays" :key="d.val"
+            class="day-btn"
+            :class="{ active: selectedWeekdays.includes(d.val) }"
+            @click="toggleDay(d.val)"
+          >{{ d.label }}</button>
+        </div>
+        <div class="day-picker-actions">
+          <button class="day-cancel-btn" @click="showDayPicker = false">Отмена</button>
+          <button class="day-confirm-btn" :disabled="!selectedWeekdays.length || addingTraining" @click="addTraining">
+            Добавить
+          </button>
         </div>
       </div>
     </div>
 
-    <div class="composer q-pa-sm bg-white">
-      <div class="row items-end no-wrap">
-        <q-input v-model="draft" class="col" type="textarea" autogrow dense standout placeholder="Напишите сообщение..."
-          @keyup.enter.exact="onSend" />
-        <q-btn color="primary" round icon="send" class="q-ml-sm" :disable="!canSend" @click="onSend" />
-      </div>
+    <!-- Add training button -->
+    <div v-if="proposedTraining" class="add-training-bar">
+      <button class="add-training-btn" :disabled="addingTraining" @click="openDayPicker">
+        {{ addingTraining ? '⏳ Добавляем…' : '💪 Добавить предложенную тренировку' }}
+      </button>
     </div>
-  </q-page>
-  <BottomNavBar v-model="activeTab" @navigate="onNavigate" />
+
+    <!-- Composer -->
+    <div class="composer">
+      <textarea
+        v-model="draft"
+        class="composer-input"
+        placeholder="Напишите сообщение…"
+        rows="1"
+        @keydown.enter.exact.prevent="onSend"
+      />
+      <button class="send-btn" :disabled="!canSend" @click="onSend">➤</button>
+    </div>
+
+    <BottomNavBar v-model="activeTab" @navigate="onNavigate" />
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -56,10 +88,10 @@ import { useQuasar } from 'quasar'
 
 const route = useRoute()
 const router = useRouter()
-
+const $q = useQuasar()
 const activeTab = ref('chat')
 
-function sync() {
+function syncTab() {
   const p = route.path
   if (p.endsWith('/history')) activeTab.value = 'history'
   else if (p.endsWith('/exercises')) activeTab.value = 'exercises'
@@ -67,53 +99,51 @@ function sync() {
   else if (p.endsWith('/coach')) activeTab.value = 'chat'
   else activeTab.value = 'add'
 }
-
-sync()
-watch(() => route.path, sync)
+syncTab()
+watch(() => route.path, syncTab)
 
 function onNavigate(key: string) {
   const map: Record<string, string> = {
-    chat: '/coach',
-    history: '/history',
-    add: '/mainPage',
-    exercises: '/exercises',
-    profile: '/profile',
+    chat: '/coach', history: '/history', add: '/mainPage',
+    exercises: '/exercises', profile: '/profile',
   }
   const to = map[key] || '/mainPage'
   if (route.path !== to) void router.push(to)
 }
 
-// Messenger state
-interface ChatMessage {
-  id: number
-  text: string
-  mine: boolean
-  stamp: string
-}
+interface ChatMsg { id: number; text: string; mine: boolean; stamp: string }
 
-const messages = ref<ChatMessage[]>([
-  { id: 1, text: 'Я твой тренер. Как могу помочь?', mine: false, stamp: ts() },
+const messages = ref<ChatMsg[]>([
+  { id: 1, text: 'Привет! Я твой коуч. Как могу помочь?', mine: false, stamp: ts() },
 ])
 
 const draft = ref('')
 const typing = ref(false)
-const scrollAreaRef = ref()
-const $q = useQuasar()
+const scrollAreaRef = ref<HTMLElement | null>(null)
+const bottomAnchorRef = ref<HTMLElement | null>(null)
 const userIdRef = ref<number | null>(null)
+const canSend = computed(() => draft.value.trim().length > 0)
+const proposedTraining = ref<any | null>(null)
+const addingTraining = ref(false)
+const showDayPicker = ref(false)
+const selectedWeekdays = ref<string[]>([])
 
-function uuidv4() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = (Math.random() * 16) | 0
-    const v = c === 'x' ? r : (r & 0x3) | 0x8
-    return v.toString(16)
-  })
+const weekdays = [
+  { val: 'Mon', label: 'Пн' }, { val: 'Tue', label: 'Вт' }, { val: 'Wed', label: 'Ср' },
+  { val: 'Thu', label: 'Чт' }, { val: 'Fri', label: 'Пт' }, { val: 'Sat', label: 'Сб' },
+  { val: 'Sun', label: 'Вс' },
+]
+
+function toggleDay(d: string) {
+  const idx = selectedWeekdays.value.indexOf(d)
+  if (idx === -1) selectedWeekdays.value.push(d)
+  else selectedWeekdays.value.splice(idx, 1)
 }
 
-const userAvatar = '/public/icons/ProIcon.png'.replace('/public', '') // served from public root
-const botAvatar = '/logo.jpg'
-const isDev = Boolean(import.meta.env.DEV)
-
-const canSend = computed(() => draft.value.trim().length > 0)
+function openDayPicker() {
+  selectedWeekdays.value = []
+  showDayPicker.value = true
+}
 
 function ts() {
   return new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
@@ -121,76 +151,52 @@ function ts() {
 
 function escapeHtml(s: string) {
   return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 function formatMessageHtml(text: string) {
   if (!text) return ''
-  const src = String(text).replace(/\r\n/g, '\n')
-  const lines = src.split('\n')
+  const lines = String(text).replace(/\r\n/g, '\n').split('\n')
   const out: string[] = []
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
+    const line = lines[i]!
     if (line.startsWith('### ')) {
-      const content = escapeHtml(line.slice(4).trim()).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      out.push(`<h5>${content}</h5>`)
+      out.push(`<strong>${escapeHtml(line.slice(4).trim())}</strong>`)
       continue
     }
-    if (line.trim() === '---') {
-      out.push('<hr/>')
-      continue
-    }
+    if (line.trim() === '---') { out.push('<hr/>'); continue }
     if (line.startsWith('- ')) {
-      // collect list
       const items: string[] = []
       let j = i
-      for (; j < lines.length; j++) {
-        if (!lines[j].startsWith('- ')) break
-        items.push(`<li>${escapeHtml(lines[j].slice(2).trim())}</li>`)
-      }
-      const itemsHtml = items.map((it) => it.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>'))
-      out.push(`<ul>${itemsHtml.join('')}</ul>`)
+      for (; j < lines.length && lines[j]!.startsWith('- '); j++)
+        items.push(`<li>${escapeHtml(lines[j]!.slice(2)).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</li>`)
+      out.push(`<ul>${items.join('')}</ul>`)
       i = j - 1
       continue
     }
-    // paragraph: collect until blank or special
-    let j = i
-    const para: string[] = []
-    for (; j < lines.length; j++) {
-      const L = lines[j]
-      if (L.trim() === '') break
-      if (L.startsWith('### ') || L.startsWith('- ') || L.trim() === '---') break
-      para.push(escapeHtml(L))
+    if (line.trim()) {
+      out.push(`<p>${escapeHtml(line).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')}</p>`)
     }
-    if (para.length) {
-      // join paragraph lines and convert bold markers
-      const paragraph = para.join('<br/>').replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      out.push(`<p>${paragraph}</p>`)
-    }
-    i = j
   }
   return out.join('')
 }
 
 function scrollToBottom() {
   void nextTick(() => {
-    try {
+    void nextTick(() => {
       const el = scrollAreaRef.value
-      if (!el) return
-      // plain div: scrollTop -> scrollHeight
-      if (el instanceof HTMLElement) {
-        el.scrollTop = el.scrollHeight
-      } else if (typeof el.setScrollPosition === 'function') {
-        // fallback for q-scroll-area
-        el.setScrollPosition('vertical', 10 ** 9, 300)
-      }
-    } catch (e) {
-      // ignore
-    }
+      if (el) el.scrollTop = el.scrollHeight + 500
+    })
+  })
+}
+
+watch(messages, () => { scrollToBottom() }, { deep: true })
+watch(typing, () => { scrollToBottom() })
+
+function uuidv4() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
   })
 }
 
@@ -198,241 +204,371 @@ async function onSend() {
   if (!canSend.value) return
   const text = draft.value.trim()
   draft.value = ''
-  const id = (messages.value.at(-1)?.id || 0) + 1
-  messages.value.push({ id, text, mine: true, stamp: ts() })
-  console.log('messages after push', JSON.parse(JSON.stringify(messages.value)))
+  messages.value.push({ id: Date.now(), text, mine: true, stamp: ts() })
   scrollToBottom()
-
-  // send to agent backend via dev-server proxy (/api/agent -> localhost:8080)
   typing.value = true
   try {
-    // determine chat_id and exercise_id from route (if provided)
     const chatId = String(route.query.chat_id || route.query.chatId || uuidv4())
     const mode = String(route.query.mode || '')
-    const exerciseId = Number(route.query.exercise_id || route.query.exerciseId || route.query.id || route.params.id || 0)
+    const exerciseId = Number(route.query.exercise_id || route.query.exerciseId || 0)
 
-    const basePayload: any = {
+    const payload: any = {
       message: text,
-      user_token: (localStorage.getItem('access_token') || ''),
+      user_token: localStorage.getItem('access_token') || '',
       user_id: Number(userIdRef.value || 0),
       chat_id: chatId,
     }
-
-    // add exercise_id only when not in tell_about or prepare_trainning modes
-    if (mode !== 'tell_about' && mode !== 'prepare_trainning') basePayload.exercise_id = exerciseId
+    if (mode !== 'tell_about' && mode !== 'prepare_trainning') payload.exercise_id = exerciseId
 
     let endpoint = '/agent/exercise'
     if (mode === 'tell_about') endpoint = '/agent/tell_about'
     else if (mode === 'prepare_trainning') endpoint = '/agent/prepare_trainning'
 
-    console.log(`POST -> ${endpoint} (proxied to /api${endpoint})`, basePayload)
-    const resp = await api.post(endpoint, basePayload)
-    const replyText = typeof resp.data === 'string' ? resp.data : (resp.data?.reply || JSON.stringify(resp.data))
-    const rid = (messages.value.at(-1)?.id || 0) + 1
-    messages.value.push({ id: rid, text: replyText, mine: false, stamp: ts() })
+    const resp = await api.post(endpoint, payload)
+    let replyText: string
+    if (mode === 'prepare_trainning' && resp.data?.text !== undefined) {
+      replyText = resp.data.text
+      if (resp.data.training) proposedTraining.value = resp.data.training
+    } else {
+      replyText = typeof resp.data === 'string' ? resp.data : (resp.data?.reply || JSON.stringify(resp.data))
+    }
+    messages.value.push({ id: Date.now() + 1, text: replyText, mine: false, stamp: ts() })
     scrollToBottom()
-  } catch (err) {
-    console.error('Agent request failed', err)
-    $q.notify({ type: 'negative', message: 'Ошибка связи с виртуальным коучем' })
+  } catch {
+    $q.notify({ type: 'negative', message: 'Ошибка связи с коучем' })
   } finally {
     typing.value = false
   }
 }
 
-function sleep(ms: number) {
-  return new Promise((res) => setTimeout(res, ms))
+async function addTraining() {
+  if (!proposedTraining.value || !selectedWeekdays.value.length) return
+  addingTraining.value = true
+  try {
+    await api.post('/training/planned/create', {
+      weekdays: selectedWeekdays.value,
+      training: proposedTraining.value,
+    })
+    proposedTraining.value = null
+    showDayPicker.value = false
+    $q.notify({ type: 'positive', message: 'Тренировка добавлена в план!' })
+  } catch {
+    $q.notify({ type: 'negative', message: 'Не удалось добавить тренировку' })
+  } finally {
+    addingTraining.value = false
+  }
 }
 
-async function simulateBotReply() {
-  typing.value = true
-  await sleep(600 + Math.random() * 800)
-  const suggestions: string[] = [
-    'Принято. Предлагаю 5 упражнений на 30 минут. Готов?',
-    'Могу адаптировать план под доступный инвентарь. Что у тебя есть?',
-    'Хорошо! Сколько времени сегодня хочешь потратить?',
-  ]
-  const id = (messages.value.at(-1)?.id || 0) + 1
-  const idx = Math.floor(Math.random() * suggestions.length)
-  const pick = suggestions[idx]!
-  messages.value.push({ id, text: pick, mine: false, stamp: ts() })
-  typing.value = false
+onMounted(async () => {
   scrollToBottom()
-}
-
-onMounted(() => {
-  scrollToBottom()
-    // fetch current user id for agent requests
-    ; (async () => {
-      try {
-        const resp = await api.get('/user/')
-        userIdRef.value = Number(resp.data?.id || 0)
-      } catch (e) {
-        console.warn('Failed to fetch user id on VirtualCoach mount', e)
-        userIdRef.value = null
-      }
-    })()
+  try {
+    const resp = await api.get('/user/')
+    userIdRef.value = Number(resp.data?.id || 0)
+  } catch { /* */ }
 })
 </script>
 
 <style scoped>
-.page-with-nav {
-  padding-bottom: 88px;
+.coach-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--ai-bg);
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 68px;
+}
+
+.coach-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+  background: var(--ai-teal);
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.coach-avatar { font-size: 32px; }
+
+.coach-name {
+  font-size: 17px;
+  font-weight: 800;
+  font-family: 'Nunito', sans-serif;
+}
+
+.coach-status {
+  font-size: 12px;
+  opacity: 0.85;
 }
 
 .chat-area {
-  min-height: 0;
-  /* allows scroll-area to size correctly in column layout */
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  scrollbar-width: thin;
+  scrollbar-color: #d4c9b5 transparent;
+}
+
+.chat-area::-webkit-scrollbar { width: 4px; }
+.chat-area::-webkit-scrollbar-track { background: transparent; }
+.chat-area::-webkit-scrollbar-thumb { background: #d4c9b5; border-radius: 4px; }
+.chat-area::-webkit-scrollbar-thumb:hover { background: #b8a99a; }
+
+.chat-inner {
   display: flex;
-  flex: 1 1 auto;
   flex-direction: column;
+  gap: 10px;
 }
 
-.chat-area .fit {
-  flex: 1 1 auto;
-}
-
-.composer {
-  position: sticky;
-  bottom: 0;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-}
-
-.chat-bubble .avatar-wrap {
+.bubble-wrap {
   display: flex;
   align-items: flex-end;
-  padding: 0 8px;
+  gap: 8px;
 }
 
-.chat-bubble .avatar-wrap.user {
-  padding-left: 8px;
-}
+.bubble-wrap.mine { flex-direction: row-reverse; }
 
-.chat-bubble .avatar {
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  object-fit: cover;
-}
+.bubble-avatar { font-size: 24px; flex-shrink: 0; }
 
-.bubble-inner p {
-  margin: 6px 0;
-  line-height: 1.4;
-}
-
-.bubble-inner h3 {
-  margin: 4px 0 8px 0;
-  font-size: 10px;
-  line-height: 1.15;
-  font-weight: 600;
-}
-
-.bubble-inner ul {
-  margin: 6px 0 6px 18px;
-}
-
-.bubble-inner li {
-  margin: 4px 0;
-}
-
-/* Responsive adjustments for small screens */
-@media (max-width: 480px) {
-  .chat-bubble .bubble-inner {
-    max-width: 92%;
-    padding: 8px 10px;
-  }
-
-  .bubble-inner h3 {
-    font-size: 10px;
-    margin-bottom: 6px;
-  }
-
-  .bubble-inner p {
-    font-size: 13px;
-  }
-
-  .bubble-inner ul {
-    font-size: 13px;
-  }
-
-  .bubble-meta {
-    font-size: 10px;
-  }
-}
-
-/* Typing indicator */
-.dots {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.dots span {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #9e9e9e;
-  display: inline-block;
-  animation: bounce 1.4s infinite ease-in-out both;
-}
-
-.dots span:nth-child(1) {
-  animation-delay: -0.32s;
-}
-
-.dots span:nth-child(2) {
-  animation-delay: -0.16s;
-}
-
-@keyframes bounce {
-
-  0%,
-  80%,
-  100% {
-    transform: scale(0);
-  }
-
-  40% {
-    transform: scale(1);
-  }
-}
-
-/* Chat bubble styles (simple, always-visible) */
-.chat-bubble {
-  display: flex;
-  margin: 8px 0;
-}
-
-.chat-bubble.mine {
-  justify-content: flex-end;
-}
-
-.chat-bubble .bubble-inner {
+.bubble {
   max-width: 78%;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #ffffff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  background: rgba(255,255,255,0.85);
+  border-radius: 18px 18px 18px 4px;
+  padding: 10px 14px;
+  box-shadow: 0 3px 0 0 var(--ai-shadow);
 }
 
-.chat-bubble.mine .bubble-inner {
-  background: #0f62fe;
-  /* primary */
-  color: white;
+.bubble.mine {
+  background: var(--ai-teal);
+  color: #fff;
+  border-radius: 18px 18px 4px 18px;
+  box-shadow: 0 3px 0 0 #0fa89b;
 }
 
 .bubble-text {
-  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.5;
   word-break: break-word;
 }
 
-.bubble-meta {
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.45);
-  margin-top: 6px;
+.bubble-text :deep(p) { margin: 4px 0; }
+.bubble-text :deep(ul) { margin: 6px 0 6px 16px; }
+.bubble-text :deep(li) { margin: 3px 0; }
+.bubble-text :deep(strong) { font-weight: 700; }
+
+.bubble-time {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-top: 5px;
   text-align: right;
 }
 
-.chat-bubble.mine .bubble-meta {
-  color: rgba(255, 255, 255, 0.75);
+/* Typing dots */
+.typing-dots {
+  display: flex;
+  gap: 5px;
+  padding: 14px 16px;
+}
+
+.typing-dots span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ai-shadow);
+  animation: dot-bounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes dot-bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* Composer */
+.composer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(247, 243, 223, 0.95);
+  border-top: 2px solid #e8dcc8;
+  flex-shrink: 0;
+}
+
+.composer-input {
+  flex: 1;
+  resize: none;
+  border-radius: 20px;
+  border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8);
+  color: var(--ai-text);
+  font-size: 14px;
+  font-family: 'Nunito', sans-serif;
+  padding: 10px 14px;
+  outline: none;
+  max-height: 120px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #d4c9b5 transparent;
+}
+
+.composer-input::-webkit-scrollbar { width: 3px; }
+.composer-input::-webkit-scrollbar-track { background: transparent; }
+.composer-input::-webkit-scrollbar-thumb { background: #d4c9b5; border-radius: 3px; }
+
+.composer-input:focus { border-color: var(--ai-teal); }
+
+.send-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: var(--ai-teal);
+  color: #fff;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 3px 0 0 #0fa89b;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.send-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 1px 0 0 #0fa89b;
+}
+
+.send-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* Add training bar */
+.add-training-bar {
+  padding: 8px 12px;
+  background: rgba(247, 243, 223, 0.98);
+  border-top: 2px solid #e8dcc8;
+  flex-shrink: 0;
+}
+
+.add-training-btn {
+  width: 100%;
+  padding: 13px;
+  border-radius: 16px;
+  border: none;
+  background: var(--ai-teal);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 4px 0 0 #0fa89b;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.add-training-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 0 #0fa89b;
+}
+
+.add-training-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Day picker overlay */
+.day-picker-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 80px;
+}
+
+.day-picker-card {
+  background: var(--ai-bg);
+  border-radius: 24px 24px 16px 16px;
+  padding: 24px 20px 20px;
+  width: min(440px, 96vw);
+  box-shadow: 0 -4px 0 0 var(--ai-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.day-picker-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ai-text);
+  font-family: 'Nunito', sans-serif;
+}
+
+.days-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.day-btn {
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 2px solid #e8dcc8;
+  background: rgba(255,255,255,0.8);
+  color: var(--ai-text);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.day-btn.active {
+  background: var(--ai-teal);
+  border-color: var(--ai-teal);
+  color: #fff;
+}
+
+.day-picker-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.day-cancel-btn {
+  padding: 11px 20px;
+  border-radius: 14px;
+  border: 2px solid #e8dcc8;
+  background: transparent;
+  color: var(--ai-text);
+  font-size: 14px;
+  font-weight: 700;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+}
+
+.day-confirm-btn {
+  padding: 11px 20px;
+  border-radius: 14px;
+  border: none;
+  background: var(--ai-teal);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+  box-shadow: 0 3px 0 0 #0fa89b;
+}
+
+.day-confirm-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

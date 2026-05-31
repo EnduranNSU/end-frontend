@@ -1,17 +1,13 @@
 <template>
   <div class="exercise-detail q-pa-md">
     <div class="media">
-      <div class="video-wrapper" @click="togglePlay">
-        <video ref="videoEl" :src="videoSrc" playsinline muted class="video-player"></video>
-        <div v-if="!isPlaying" class="overlay">
-          <div class="play-circle">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" stroke="white" stroke-width="3">
-              <circle cx="32" cy="32" r="30" opacity="0.9" />
-              <polygon points="26,20 48,32 26,44" fill="white" />
-            </svg>
-          </div>
-        </div>
-      </div>
+      <a v-if="videoSrc" :href="videoSrc" target="_blank" rel="noopener noreferrer" class="youtube-btn">
+        <svg class="yt-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+          <path fill="red" d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2C0 8.1 0 12 0 12s0 3.9.5 5.8a3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1C24 15.9 24 12 24 12s0-3.9-.5-5.8z"/>
+          <polygon fill="white" points="9.6,15.6 15.8,12 9.6,8.4"/>
+        </svg>
+        Смотреть технику на YouTube
+      </a>
     </div>
 
     <ExerciseMeta v-if="meta" :meta="meta" class="q-mt-md" />
@@ -43,8 +39,6 @@
 <script lang="ts">
 import { defineComponent, ref, computed } from 'vue';
 import { useRouter } from 'vue-router'
-import { api } from 'src/boot/axios'
-import { useQuasar } from 'quasar'
 import ExerciseMeta from './ExerciseMeta.vue';
 
 interface Meta {
@@ -64,102 +58,60 @@ export default defineComponent({
   },
   setup(props) {
     const router = useRouter()
-    const $q = useQuasar()
-    const isPlaying = ref(false);
-    const videoEl = ref<HTMLVideoElement | null>(null);
     const expanded = ref(false)
 
-    const togglePlay = () => {
-      if (!videoEl.value) return;
-      if (isPlaying.value) {
-        videoEl.value.pause();
-        isPlaying.value = false;
-      } else {
-        videoEl.value.play().catch((err) => {
-          console.warn('Failed to play video:', err);
-        });
-        isPlaying.value = true;
-      }
-    };
-
-    const paragraphs = computed(() => {
-      const text = props.instruction || ''
-      // split on one or more newlines and trim each paragraph
-      return text
+    const paragraphs = computed(() =>
+      (props.instruction || '')
         .split(/\n+/)
         .map((s) => s.trim())
         .filter((s) => s.length > 0)
-    })
+    )
 
     function toggleExpanded() {
       expanded.value = !expanded.value
-      // when expanding, ensure video isn't hidden or scrolled; no further action needed
     }
 
     function uuidv4() {
-      // simple UUIDv4 generator
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
         const r = (Math.random() * 16) | 0
-        const v = c === 'x' ? r : (r & 0x3) | 0x8
-        return v.toString(16)
+        return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
       })
     }
 
-    const goToVirtualCoach = () => {
-      // Only navigate to the Virtual Coach page with context.
-      // Do NOT send any initial request to the agent here — user will start the conversation in the chat UI.
-      const exId = Number(props.exerciseId || 0)
-      const chatId = uuidv4()
-      void router.push({ path: '/coach', query: { chat_id: chatId, exercise_id: String(exId) } })
+    function goToVirtualCoach() {
+      void router.push({ path: '/coach', query: { chat_id: uuidv4(), exercise_id: String(props.exerciseId || 0) } })
     }
 
-    return { videoEl, isPlaying, togglePlay, goToVirtualCoach, paragraphs, expanded, toggleExpanded };
+    return { goToVirtualCoach, paragraphs, expanded, toggleExpanded };
   },
 });
 </script>
 
 <style scoped>
-.video-wrapper {
-  position: relative;
-  width: 100%;
-  max-width: 720px;
-  border-radius: 16px;
-  overflow: hidden;
-  cursor: pointer;
-  transition: box-shadow 0.2s ease;
-}
-
-.video-player {
-  width: 100%;
-  display: block;
-  border-radius: 16px;
-  object-fit: cover;
-  margin-bottom: 16px;
-}
-
-.overlay {
-  position: absolute;
-  inset: 0;
+.youtube-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
-  background: rgba(233, 247, 246, 0.4);
-  backdrop-filter: blur(1px);
+  gap: 10px;
+  padding: 14px 24px;
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 14px;
+  text-decoration: none;
+  color: #222;
+  font-size: 16px;
+  font-weight: 500;
+  width: fit-content;
+  transition: border-color 0.2s, background 0.2s;
   margin-bottom: 16px;
 }
-
-.play-circle {
-  width: 90px;
-  height: 90px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.youtube-btn:hover {
+  border-color: #f00;
+  background: #fff5f5;
 }
-
-.play-circle svg {
-  width: 70px;
-  height: 70px;
+.yt-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
 }
 
 .virtual-coach-wrapper {
