@@ -93,6 +93,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { pct } from 'src/utils/chat'
 import { api } from 'src/boot/axios'
 import { useQuasar } from 'quasar'
 import BottomNavBar from 'src/components/BottomNavBar.vue'
@@ -153,10 +154,6 @@ function onDrop(e: DragEvent) {
 
 function clearFile() { selectedFile.value = null; result.value = null }
 
-function pct(v?: number) {
-  if (v === undefined || v === null) return '—'
-  return `${(v * 100).toFixed(0)}%`
-}
 
 async function analyze() {
   if (!selectedFile.value) return
