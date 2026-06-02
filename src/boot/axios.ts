@@ -11,9 +11,7 @@ declare module 'vue' {
 // В разработке используем относительный префикс `/api`, чтобы Vite/Quasar dev-server
 // мог проксировать запросы и избежать CORS. В продакшне используем реальный
 // `VITE_API_BASE`, если он указан.
-const base = import.meta.env.DEV
-  ? '/api' // проксируем через dev server
-  : import.meta.env.VITE_API_BASE || 'http://localhost:8080'
+const base = import.meta.env.VITE_API_BASE || '/api'
 
 // Создаём общий экземпляр axios с предустановленным baseURL.
 const api = axios.create({ baseURL: base })

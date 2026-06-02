@@ -143,9 +143,8 @@ const statusText = computed(() => {
 
 function wsUrl() {
   const ex = selectedExercise.value
-  return import.meta.env.DEV
-    ? `ws://${window.location.host}/api/cv/ws/${ex}`
-    : `ws://localhost:8001/cv/ws/${ex}`
+  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
+  return `${proto}://${window.location.host}/api/cv/ws/${ex}`
 }
 
 async function start() {
