@@ -27,11 +27,11 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install frontend deps
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Install Capacitor deps
         working-directory: src-capacitor
-        run: npm ci
+        run: npm ci --legacy-peer-deps
 
       - name: Build Quasar + sync to Android
         run: npx quasar build -m capacitor -T android
