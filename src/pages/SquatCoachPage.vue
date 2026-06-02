@@ -143,8 +143,9 @@ const statusText = computed(() => {
 
 function wsUrl() {
   const ex = selectedExercise.value
-  const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
-  return `${proto}://${window.location.host}/api/cv/ws/${ex}`
+  const apiBase = import.meta.env.VITE_API_BASE || `${window.location.protocol}//${window.location.host}/api`
+  const wsBase = apiBase.replace(/^https/, 'wss').replace(/^http/, 'ws').replace(/\/api$/, '')
+  return `${wsBase}/api/cv/ws/${ex}`
 }
 
 async function start() {

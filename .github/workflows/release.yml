@@ -35,6 +35,8 @@ jobs:
 
       - name: Build Quasar + sync to Android
         run: npx quasar build -m capacitor -T android
+        env:
+          VITE_API_BASE: https://enduran.duckdns.org/api
 
       - name: Write local.properties
         run: echo "sdk.dir=$ANDROID_SDK_ROOT" > src-capacitor/android/local.properties
