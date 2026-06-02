@@ -1,0 +1,13 @@
+{
+  "name": "end-front",
+  "version": "0.0.1",
+  "description": "Training App with AI-agent",
+  "author": "EnduranNSU",
+  "private": true,
+  "dependencies": {
+    "@capacitor/android": "^7.6.5",
+    "@capacitor/app": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}

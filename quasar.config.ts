@@ -1,10 +1,10 @@
 // Configuration for your app
 // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file
 
-import { defineConfig } from '#q-app/wrappers';
-import { fileURLToPath } from 'node:url';
+import { defineConfig } from '#q-app/wrappers'
+import { fileURLToPath } from 'node:url'
 
-export default defineConfig((ctx) => {
+export default defineConfig(ctx => {
   return {
     // https://v2.quasar.dev/quasar-cli-vite/prefetch-feature
     // preFetch: true,
@@ -12,7 +12,7 @@ export default defineConfig((ctx) => {
     // app boot file (/src/boot)
     // --> boot files are part of "main.js"
     // https://v2.quasar.dev/quasar-cli-vite/boot-files
-    boot: ['i18n', 'axios'],
+    boot: ['i18n', 'axios', 'pinia'],
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#css
     css: ['app.scss'],
@@ -89,6 +89,8 @@ export default defineConfig((ctx) => {
               lintCommand: 'eslint -c ./eslint.config.js "./src*/**/*.{ts,js,mjs,cjs,vue}"',
               useFlatConfig: true,
             },
+            overlay: false,
+            enableBuild: false,
           },
           { server: false },
         ],
@@ -99,6 +101,36 @@ export default defineConfig((ctx) => {
     devServer: {
       // https: true,
       open: true, // opens browser window automatically
+      // Disable Vite HMR overlay (red error overlay in the browser)
+      // This prevents build/runtime errors from showing as a full-screen overlay.
+      hmr: {
+        overlay: false,
+      },
+      // Прокси для запросов к API в режиме разработки, чтобы избежать CORS.
+      // Перенаправляем все запросы, начинающиеся с /api, на бэкенд.
+      proxy: (() => {
+        // Всё через gateway на :8001 (как написано в FRONTEND_GUIDE.md)
+        const gateway = process.env.VITE_GATEWAY_URL || 'http://localhost:8001'
+        console.log('[dev] proxy /api ->', gateway)
+
+        return {
+          // WebSocket для CV live coach — должен идти первым с ws:true
+          '/api/cv/ws': {
+            target: gateway,
+            changeOrigin: true,
+            secure: false,
+            ws: true,
+            rewrite: (path: string) => path.replace(/^\/api/, ''),
+          },
+          // Всё остальное тоже через gateway
+          '/api': {
+            target: gateway,
+            changeOrigin: true,
+            secure: false,
+            rewrite: (path: string) => path.replace(/^\/api/, ''),
+          },
+        }
+      })(),
     },
 
     // https://v2.quasar.dev/quasar-cli-vite/quasar-config-file#framework
@@ -116,7 +148,8 @@ export default defineConfig((ctx) => {
       // directives: [],
 
       // Quasar plugins
-      plugins: [],
+      // Добавляем Notify, чтобы можно было вызывать $q.notify(...) в компонентах
+      plugins: ['Notify'],
     },
 
     // animations: 'all', // --- includes all animations
@@ -231,5 +264,5 @@ export default defineConfig((ctx) => {
        */
       extraScripts: [],
     },
-  };
-});
+  }
+})

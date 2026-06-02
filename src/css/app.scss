@@ -1,1 +1,162 @@
-// app global css in SCSS form
+@import 'animal-island-vue/style';
+
+// ── Global tokens ──────────────────────────────────────────────
+:root {
+  --ai-bg:        rgb(247, 243, 223);
+  --ai-text:      #725d42;
+  --ai-teal:      #19c8b9;
+  --ai-amber:     #f0a629;
+  --ai-green:     #6fba2c;
+  --ai-shadow:    #bdaea0;
+  --ai-radius:    16px;
+}
+
+// ── Base ───────────────────────────────────────────────────────
+html, body {
+  background: var(--ai-bg) !important;
+  color: var(--ai-text);
+  font-family: 'Nunito', 'Noto Sans SC', sans-serif;
+  // не ограничиваем html/body — Quasar манипулирует ими при диалогах
+  overflow-x: hidden;
+}
+
+// Центрируем и ограничиваем ширину только на уровне app-контейнера
+#q-app {
+  max-width: 480px;
+  margin: 0 auto;
+  min-height: 100vh;
+  background: var(--ai-bg);
+  position: relative;
+}
+
+.q-page {
+  background: var(--ai-bg) !important;
+  color: var(--ai-text);
+}
+
+.q-layout {
+  background: var(--ai-bg) !important;
+}
+
+.q-page {
+  background: var(--ai-bg) !important;
+  color: var(--ai-text);
+}
+
+.q-layout {
+  background: var(--ai-bg) !important;
+}
+
+// ── Typography ─────────────────────────────────────────────────
+h1, h2, h3, h4, h5, h6,
+.text-h6, .text-h5, .text-subtitle1, .text-subtitle2 {
+  color: var(--ai-text);
+  font-family: 'Nunito', sans-serif;
+  font-weight: 700;
+}
+
+// ── Quasar override — buttons ──────────────────────────────────
+.q-btn {
+  border-radius: 50px !important;
+  font-weight: 700;
+  text-transform: none !important;
+  letter-spacing: 0;
+}
+
+.q-btn.bg-primary, .q-btn[color="primary"] {
+  background: var(--ai-teal) !important;
+  box-shadow: 0 5px 0 0 #0fa89b !important;
+  color: #fff !important;
+}
+
+.q-btn.bg-primary:active, .q-btn[color="primary"]:active {
+  transform: translateY(3px);
+  box-shadow: 0 2px 0 0 #0fa89b !important;
+}
+
+// ── Quasar override — inputs ────────────────────────────────────
+.q-field__control {
+  border-radius: 14px !important;
+  background: rgba(255,255,255,0.6) !important;
+}
+
+.q-field--filled .q-field__control {
+  background: rgba(255,255,255,0.6) !important;
+}
+
+// ── Quasar override — cards ─────────────────────────────────────
+.q-card {
+  border-radius: var(--ai-radius) !important;
+  background: rgba(255,255,255,0.75) !important;
+  box-shadow: 0 4px 0 0 var(--ai-shadow) !important;
+  border: none !important;
+}
+
+// ── Utility ────────────────────────────────────────────────────
+.ai-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: 16px 16px 88px;
+  background: var(--ai-bg);
+  color: var(--ai-text);
+}
+
+.ai-section-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--ai-text);
+  margin: 20px 0 10px;
+}
+
+.ai-card {
+  background: rgba(255,255,255,0.75);
+  border-radius: var(--ai-radius);
+  box-shadow: 0 4px 0 0 var(--ai-shadow);
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.ai-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border-radius: 50px;
+  font-weight: 700;
+  font-size: 14px;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  background: var(--ai-teal);
+  color: #fff;
+  box-shadow: 0 4px 0 0 #0fa89b;
+}
+
+.ai-pill-btn:active {
+  transform: translateY(3px);
+  box-shadow: 0 1px 0 0 #0fa89b;
+}
+
+.ai-pill-btn.secondary {
+  background: var(--ai-amber);
+  box-shadow: 0 4px 0 0 #c8841a;
+}
+
+.ai-pill-btn.secondary:active {
+  box-shadow: 0 1px 0 0 #c8841a;
+}
+
+.ai-pill-btn.outline {
+  background: transparent;
+  color: var(--ai-text);
+  border: 2px solid var(--ai-shadow);
+  box-shadow: 0 4px 0 0 var(--ai-shadow);
+}
+
+.ai-pill-btn.outline.active {
+  background: var(--ai-teal);
+  color: #fff;
+  border-color: var(--ai-teal);
+  box-shadow: 0 4px 0 0 #0fa89b;
+}
