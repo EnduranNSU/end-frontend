@@ -1,6 +1,7 @@
 # Enduran (end-front)
 
-Training App with AI-agent
+Фронтенд часть приложения для тренировок с ии агентом
+https://enduran.duckdns.org/ <- если есть проблемы с APK, можете посетить этот сайт
 
 ## Install the dependencies
 
@@ -38,6 +39,3 @@ npm run format
 quasar build
 ```
 
-### Customize the configuration
-
-See [Configuring quasar.config.js](https://v2.quasar.dev/quasar-cli-vite/quasar-config-js).
